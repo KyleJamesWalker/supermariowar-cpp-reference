@@ -5323,8 +5323,10 @@ void dumpLevelEditorState(void* outp)
 			hm.add((int)g_map->mapdatatop[x][y]);
 			const MapBlock& b = g_map->objectdata[x][y];
 			hm.add(b.iType);
-			for (short s : b.iSettings)
-				hm.add(s);
+			// Only the settings the map format stores: the rest keep stale heap bytes.
+			const int stored = (b.iType == 1 || b.iType == 15) ? NUM_BLOCK_SETTINGS : (b.iType >= 11 && b.iType <= 14) ? 1 : 0;
+			for (int s = 0; s < stored; s++)
+				hm.add(b.iSettings[s]);
 			hm.add(b.fHidden ? 1 : 0);
 			const Warp& w = g_map->warpdata[x][y];
 			hm.add((int)w.direction);

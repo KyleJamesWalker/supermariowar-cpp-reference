@@ -367,6 +367,7 @@ class CMap
 		friend void loadmap(char * szMapFile);
 		friend void SetNoSpawn(short nospawnmode, short col, short row, bool value);
 		friend int editor_platforms();
+		friend void dumpLevelEditorState(void* out);
 
 		friend class B_BreakableBlock;
 		friend class B_DonutBlock;

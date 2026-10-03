@@ -1,6 +1,8 @@
 add_library(CommonFiles STATIC
     CmdArgs.cpp
     CmdArgs.h
+    EditorHarness.cpp
+    EditorHarness.h
     eyecandy.cpp
     eyecandy.h
     EyecandyStyles.h

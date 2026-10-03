@@ -36,6 +36,7 @@
 #include "sfx.h"
 #include "TilesetManager.h"
 #include "GameValues.h"
+#include "EditorHarness.h"
 
 // Included only for movingplatform
 // TODO: Remove and fix linker errors
@@ -75,6 +76,16 @@ void removeifprojectile(IO_MovingObject * object, bool playsound, bool forcedead
 #include <emscripten.h>
 #endif
 
+
+#define SDL_Delay(n) editorharness::frameDelay(n)
+#define SDL_GetKeyboardState(x) editorharness::keyboardState()
+#define SDL_GetMouseState(x, y) editorharness::mouseState()
+
+namespace harness {
+bool noLimit() { return editorharness::noLimit(); }
+}
+
+void dumpLevelEditorState(void* out);
 
 #define MAPTITLESTRING "Level Editor"
 
@@ -553,6 +564,9 @@ int main(int argc, char *argv[])
 
 	game_values.init(); // Needed for FPSLimiter
 
+	editorharness::init();
+	editorharness::setDumper([](FILE* out) { dumpLevelEditorState(out); });
+
 	printf("entering level editor loop...\n");
 #ifdef __EMSCRIPTEN__
     emscripten_set_main_loop(gameloop_frame, 0, 1);
@@ -651,7 +665,8 @@ void gameloop_frame()
 			break;
 		}
 
-        FPSLimiter::instance().beforeFlip();
+        editorharness::frameDelay(0);
+		FPSLimiter::instance().beforeFlip();
         gfx_flipscreen();
         FPSLimiter::instance().afterFlip();
 
@@ -2158,6 +2173,7 @@ int editor_properties(short iBlockCol, short iBlockRow)
 		rm->menu_font_small.drawRightJustified(640, 0, maplist->currentFilename().c_str());
 
 		DrawMessage();
+		editorharness::frameDelay(0);
 		FPSLimiter::instance().beforeFlip();
 		gfx_flipscreen();
 		FPSLimiter::instance().afterFlip();
@@ -2354,7 +2370,8 @@ int editor_platforms()
                     if (PLATFORM_EDIT_STATE_EDIT == iPlatformEditState || PLATFORM_EDIT_STATE_ANIMATED == iPlatformEditState || PLATFORM_EDIT_STATE_TILETYPE == iPlatformEditState) {
 							FPSLimiter::instance().frameStart();
 							while (editor_tiles() == EDITOR_TILES) {
-								FPSLimiter::instance().beforeFlip();
+								editorharness::frameDelay(0);
+		FPSLimiter::instance().beforeFlip();
 								gfx_flipscreen();
 								FPSLimiter::instance().afterFlip();
 								FPSLimiter::instance().frameStart();
@@ -2367,7 +2384,8 @@ int editor_platforms()
                     if (PLATFORM_EDIT_STATE_EDIT == iPlatformEditState || PLATFORM_EDIT_STATE_ANIMATED == iPlatformEditState || PLATFORM_EDIT_STATE_TILETYPE == iPlatformEditState) {
 							FPSLimiter::instance().frameStart();
 							while (editor_animation() == EDITOR_ANIMATION) {
-								FPSLimiter::instance().beforeFlip();
+								editorharness::frameDelay(0);
+		FPSLimiter::instance().beforeFlip();
 								gfx_flipscreen();
 								FPSLimiter::instance().afterFlip();
 								FPSLimiter::instance().frameStart();
@@ -2378,7 +2396,8 @@ int editor_platforms()
                     if (PLATFORM_EDIT_STATE_EDIT == iPlatformEditState || PLATFORM_EDIT_STATE_ANIMATED == iPlatformEditState || PLATFORM_EDIT_STATE_TILETYPE == iPlatformEditState) {
 							FPSLimiter::instance().frameStart();
 							while (editor_tiletype() == EDITOR_TILETYPE) {
-								FPSLimiter::instance().beforeFlip();
+								editorharness::frameDelay(0);
+		FPSLimiter::instance().beforeFlip();
 								gfx_flipscreen();
 								FPSLimiter::instance().afterFlip();
 								FPSLimiter::instance().frameStart();
@@ -5279,4 +5298,126 @@ bool WriteAnimatedTileTypeFile(const char * szFile)
 	}
 
 	return true;
+}
+
+namespace {
+struct Fnv {
+	uint32_t h = 0x811c9dc5;
+	void add(int32_t v) {
+		uint32_t u = (uint32_t)v;
+		for (int i = 0; i < 4; i++) {
+			h ^= (u >> (8 * i)) & 0xff;
+			h *= 0x01000193;
+		}
+	}
+	void addf(float f) {
+		int32_t v;
+		memcpy(&v, &f, 4);
+		add(v);
+	}
+};
+}
+
+// Replay-harness E/T/X/P/H records (port/EDITOR_REPLAY.md).
+void dumpLevelEditorState(void* outp)
+{
+	FILE* out = (FILE*)outp;
+	fprintf(out, "E state=%d edit_mode=%d layer=%d mouse=%d,%d ignore=%d only=%d blocks=%d\n",
+		state, edit_mode, selected_layer, mouse_x, mouse_y, ignoreclick ? 1 : 0, view_only_layer ? 1 : 0, viewblocks ? 1 : 0);
+	fprintf(out, "T tileset=%d start=%d,%d end=%d,%d size=%d,%d drag=%d view=%d,%d,%d block=%d,%d tiletype=%d settype=%d item=%d warp=%d,%d nospawn=%d\n",
+		set_tile_tileset, set_tile_start_x, set_tile_start_y, set_tile_end_x, set_tile_end_y, set_tile_cols, set_tile_rows,
+		set_tile_drag ? 1 : 0, view_tileset_x, view_tileset_y, view_animated_tileset_x, set_block, set_block_switch_on,
+		(int)set_tiletype, (int)set_type, set_mapitem, set_direction, set_connection, nospawn_mode);
+	fprintf(out, "X move=%d start=%d,%d offset=%d,%d drag=%d,%d,%d,%d replace=%d nodrag=%d copied=%d\n",
+		move_mode, move_start_x, move_start_y, move_offset_x, move_offset_y, move_drag_start_x, move_drag_start_y,
+		move_drag_offset_x, move_drag_offset_y, move_replace ? 1 : 0, move_nodrag ? 1 : 0, copiedlayer);
+	fprintf(out, "P count=%d edit=%d state=%d preview=%d switch=%d,%d hazards=%zu hzstate=%d hzedit=%d modeitem=%d,%d msg=%d music=%d\n",
+		g_iNumPlatforms, iEditPlatform, iPlatformEditState, iPlatformPreview, iPlatformSwitchState, iPlatformSwitchIndex,
+		g_map->maphazards.size(), iEditState, iEditMapHazard, modeitemmode, dragmodeitem, g_messagedisplaytimer, g_musiccategorydisplaytimer);
+
+	Fnv hm;
+	for (int x = 0; x < MAPWIDTH; x++) {
+		for (int y = 0; y < MAPHEIGHT; y++) {
+			for (int l = 0; l < MAPLAYERS; l++) {
+				const TilesetTile& t = g_map->mapdata[x][y][l];
+				hm.add(t.iID);
+				hm.add(t.iCol);
+				hm.add(t.iRow);
+			}
+			hm.add((int)g_map->mapdatatop[x][y]);
+			const MapBlock& b = g_map->objectdata[x][y];
+			hm.add(b.iType);
+			for (short s : b.iSettings)
+				hm.add(s);
+			hm.add(b.fHidden ? 1 : 0);
+			const Warp& w = g_map->warpdata[x][y];
+			hm.add((int)w.direction);
+			hm.add(w.connection);
+			hm.add(w.id);
+			for (int t = 0; t < NUMSPAWNAREATYPES; t++)
+				hm.add(g_map->nospawn[t][x][y] ? 1 : 0);
+		}
+	}
+	hm.add((int)g_map->mapitems.size());
+	for (const MapItem& item : g_map->mapitems) {
+		hm.add((int)item.itype);
+		hm.add(item.ix);
+		hm.add(item.iy);
+	}
+	hm.add((int)g_map->maphazards.size());
+	for (const MapHazard& hz : g_map->maphazards) {
+		hm.add(hz.itype);
+		hm.add(hz.ix);
+		hm.add(hz.iy);
+		for (int p = 0; p < NUMMAPHAZARDPARAMS; p++) {
+			hm.add(hz.iparam[p]);
+			hm.addf(hz.dparam[p]);
+		}
+	}
+	for (int l = 0; l < 3; l++)
+		hm.add(g_map->eyecandy[l]);
+	hm.add(g_map->musicCategoryID);
+	hm.add(g_map->iNumRaceGoals);
+	for (int g = 0; g < MAXRACEGOALS; g++) {
+		hm.add(g_map->racegoallocations[g].x);
+		hm.add(g_map->racegoallocations[g].y);
+	}
+	hm.add(g_map->iNumFlagBases);
+	for (int f = 0; f < 4; f++) {
+		hm.add(g_map->flagbaselocations[f].x);
+		hm.add(g_map->flagbaselocations[f].y);
+	}
+	for (int s = 0; s < 4; s++)
+		hm.add(g_map->iSwitches[s]);
+	for (unsigned char c : g_map->szBackgroundFile)
+		hm.add(c);
+	hm.add((int)g_map->platforms.size());
+
+	Fnv hp;
+	for (int i = 0; i < std::max<int>(g_iNumPlatforms, 0); i++) {
+		const MapPlatform& p = g_Platforms[i];
+		for (const TilesetTile& t : p.tiles) {
+			hp.add(t.iID);
+			hp.add(t.iCol);
+			hp.add(t.iRow);
+		}
+		for (TileType t : p.types)
+			hp.add((int)t);
+		hp.add(p.iVelocity);
+		hp.add(p.iStartX);
+		hp.add(p.iStartY);
+		hp.add(p.iEndX);
+		hp.add(p.iEndY);
+		hp.add((int)p.iPathType);
+		hp.addf(p.fAngle);
+		hp.addf(p.fRadiusX);
+		hp.addf(p.fRadiusY);
+		hp.add(p.iDrawLayer);
+	}
+
+	Fnv ha;
+	for (int i = 0; i < 256; i++)
+		ha.add((int)animatedtiletypes[i]);
+
+	fprintf(out, "H map=%08x plat=%08x anim=%08x\n", hm.h, hp.h, ha.h);
 }

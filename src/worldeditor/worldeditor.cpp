@@ -17,6 +17,7 @@
 #endif
 
 #include "CmdArgs.h"
+#include "EditorHarness.h"
 #include "FileIO.h"
 #include "FileList.h"
 #include "GameMode.h"
@@ -73,6 +74,8 @@
 #ifdef __EMSCRIPTEN__
 #define SDL_Delay(n) ;
 #endif
+
+#define SDL_Delay(n) editorharness::frameDelay(n)
 
 #define MAPTITLESTRING "World Editor"
 
@@ -423,6 +426,13 @@ void SetStageMode(short iIndex, const char * szModeName, const char * szGoalName
 	}
 }
 
+void dumpEditorState(FILE* out)
+{
+	fprintf(out, "E state=%d edit_mode=%d set_tile=%d auto=%d col=%d row=%d w=%d h=%d stages=%zu vehicles=%zu warps=%zu world=%s\n",
+		state, edit_mode, set_tile, fAutoPaint ? 1 : 0, draw_offset_col, draw_offset_row, iWorldWidth, iWorldHeight,
+		game_values.tourstops.size(), vehiclelist.size(), warplist.size(), worldlist->currentPath().filename().string().c_str());
+}
+
 //main main main
 int main(int argc, char *argv[])
 {
@@ -481,6 +491,8 @@ int main(int argc, char *argv[])
 
 	gfx_init(640,480, g_fFullScreen);
 	blitdest = screen;
+	editorharness::init();
+	editorharness::setDumper(&dumpEditorState);
 	g_tilesetmanager->init(convertPath("gfx/Classic/tilesets").c_str());
 
 	char title[128];

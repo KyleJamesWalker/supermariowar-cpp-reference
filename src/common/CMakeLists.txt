@@ -13,8 +13,11 @@ add_library(CommonFiles STATIC
     Game.cpp
     Game.h
     GameMode.h
+    GameModeType.h
     GameModeSettings.cpp
     GameModeSettings.h
+    GameModeSettingsSerialization.cpp
+    GameModeSettingsSerialization.h
     GameValues.cpp
     GameValues.h
     gfx.cpp
@@ -28,8 +31,6 @@ add_library(CommonFiles STATIC
     gfx/gfxSDL.h
     gfx/gfxSprite.cpp
     gfx/gfxSprite.h
-    gfx/SFont.cpp
-    gfx/SFont.h
     global.cpp
     input.cpp
     input.h
@@ -82,12 +83,8 @@ add_library(CommonFiles STATIC
 add_subdirectory(ui)
 target_compile_features(CommonFiles PUBLIC cxx_std_20)
 
-target_compile_definitions(CommonFiles PUBLIC USE_SDL2)  # TODO
 if (SDL2_FORCE_GLES)
     target_compile_definitions(CommonFiles PUBLIC SDL2_FORCE_GLES)
-endif()
-if (SDL2_USE_MIXERX)
-    target_compile_definitions(CommonFiles PUBLIC SDL2_USE_MIXERX)
 endif()
 
 
@@ -95,10 +92,6 @@ if(NOT EMSCRIPTEN)
     target_link_libraries(CommonFiles
         SDL2::SDL2
         SDL2_image::SDL2_image
+        SDL2_mixer::SDL2_mixer
     )
-    if (SDL2_USE_MIXERX)
-        target_link_libraries(CommonFiles SDL2_mixer_ext::SDL2_mixer_ext)
-    else()
-        target_link_libraries(CommonFiles SDL2_mixer::SDL2_mixer)
-    endif()
 endif()

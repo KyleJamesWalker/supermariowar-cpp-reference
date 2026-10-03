@@ -4,7 +4,7 @@
 #
 #-----------------------------------------------------------------------------
 
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.24)
 
 project(smw
 	VERSION 2.0.0
@@ -19,7 +19,6 @@ project(smw
 
 option(USE_PNG_SAVE "Use PNG for screenshots and thumbnails" ON)
 option(NO_NETWORK "Disable all network communication" OFF)
-option(SDL2_USE_MIXERX "(SDL2) Use SDL Mixer X instead of SDL Mixer" OFF)
 option(SDL2_FORCE_GLES "(SDL2) Use OpenGL ES rendering if possible" OFF)
 option(BUILD_TESTS "Build the unit tests" ON)
 
@@ -28,14 +27,6 @@ if(WIN32)
 	set(SMW_INSTALL_PORTABLE_DEFAULT ON)
 endif()
 option(SMW_INSTALL_PORTABLE "Install to a single directory" ${SMW_INSTALL_PORTABLE_DEFAULT})
-
-option(USE_BUNDLED_SDL "If ON, downloads and builds SDL, otherwise uses the system library" OFF)
-option(USE_BUNDLED_ZLIB "If ON, downloads and builds ZLIB, otherwise uses the system library" OFF)
-option(USE_BUNDLED_ENET "If ON, downloads and builds ENet, otherwise uses the system library" OFF)
-option(USE_BUNDLED_YAMLCPP "If ON, downloads and builds yaml-cpp, otherwise uses the system library" OFF)
-if (DEFINED BUILD_STATIC_LIBS)
-	message(DEPRECATION "BUILD_STATIC_LIBS is deprecated. Please use USE_BUNDLED_ENET and USE_BUNDLED_YAMLCPP instead.")
-endif()
 
 # Additional CMake search path
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
@@ -56,28 +47,8 @@ include(SmwGitInfo)
 #
 #-----------------------------------------------------------------------------
 
-if (NOT DISABLE_DEFAULT_CFLAGS)
-	if (EMSCRIPTEN)
-		include(PlatformEmscripten)
-	else()
-		if (CMAKE_SYSTEM_PROCESSOR MATCHES "(x64|x86_64|amd64)")
-			include(PlatformX64)
-		elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "(i[3-6]86|x86)")
-			include(PlatformX86)
-		elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "^arm")
-			include(PlatformArm)
-		elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "^aarch64")
-			include(PlatformArm64)
-		endif()
-
-		#if (APPLE)
-		#	include(PlatformApple)
-		#endif()
-
-		if (MSVC)
-			include(PlatformMSVC)
-		endif()
-	endif()
+if (EMSCRIPTEN)
+	include(PlatformEmscripten)
 endif()
 
 #-----------------------------------------------------------------------------
@@ -87,26 +58,6 @@ endif()
 #-----------------------------------------------------------------------------
 
 include(BundledDeps)
-
-if (NOT DISABLE_SYSLIB_CHECKS)
-	find_package(ZLIB REQUIRED)
-	find_package(SDL2 REQUIRED)
-	find_package(SDL2_image REQUIRED)
-	if (SDL2_USE_MIXERX)
-		find_package(SDL2_mixer_ext REQUIRED)
-	else()
-		find_package(SDL2_mixer REQUIRED)
-	endif()
-endif()
-
-find_package(yaml-cpp REQUIRED)
-if(NOT NO_NETWORK)
-	find_package(ENet REQUIRED)
-endif()
-
-# Link to static ZLIB when bundled, shared when using system
-add_library(smw_zlib INTERFACE)
-target_link_libraries(smw_zlib INTERFACE $<IF:$<BOOL:${USE_BUNDLED_ZLIB}>,ZLIB::ZLIBSTATIC,ZLIB::ZLIB>)
 
 #-----------------------------------------------------------------------------
 #
@@ -296,7 +247,6 @@ if (NOT BUILD_STATIC_LIBS)
 	if(NOT NO_NETWORK)
 		set(CPACK_DEBIAN_PACKAGE_DEPENDS "${CPACK_DEBIAN_PACKAGE_DEPENDS}, libenet2a")
 	endif()
-	set(CPACK_DEBIAN_PACKAGE_DEPENDS "${CPACK_DEBIAN_PACKAGE_DEPENDS}, libyaml-cpp0.5")
 endif()
 
 #
@@ -309,7 +259,6 @@ if (NOT BUILD_STATIC_LIBS)
 	if(NOT NO_NETWORK)
 		set(CPACK_RPM_PACKAGE_REQUIRES "${CPACK_RPM_PACKAGE_REQUIRES}, enet")
 	endif()
-	set(CPACK_RPM_PACKAGE_REQUIRES "${CPACK_RPM_PACKAGE_REQUIRES}, yaml-cpp")
 endif()
 
 #

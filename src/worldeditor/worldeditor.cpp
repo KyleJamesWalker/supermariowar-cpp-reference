@@ -86,7 +86,7 @@ const char * szEditModes[10] = {"Background Mode", "Foreground Mode", "Path Spri
 
 SDL_Surface		*screen;
 SDL_Surface		*blitdest;
-SDL_Surface		*sMapSurface;
+gfxSprite		sMapSurface;
 
 SDL_Rect		rectSrcSurface = {0, 0, 768, 608};
 SDL_Rect		rectDstSurface = {0, 0, 640, 480};
@@ -317,7 +317,7 @@ bool CheckKey(const Uint8 * keystate, SDL_Keycode key) {
 
 bool ignoreclick = false;
 
-char findstring[FILEBUFSIZE] = "";
+std::string findstring;
 
 short g_musiccategorydisplaytimer = 0;
 
@@ -385,7 +385,7 @@ MI_Text * miTitleText;
 
 UI_ModeOptionsMenu* mModeOptionsMenu;
 
-SDL_Surface * sMapThumbnail = NULL;
+gfxSprite sMapThumbnail;
 short iOldStageId = -1;
 
 //Sets up default mode options
@@ -433,6 +433,8 @@ void dumpEditorState(FILE* out)
 		game_values.tourstops.size(), vehiclelist.size(), warplist.size(), worldlist->currentPath().filename().string().c_str());
 }
 
+void inner_main();
+
 //main main main
 int main(int argc, char *argv[])
 {
@@ -452,20 +454,32 @@ int main(int argc, char *argv[])
     if (!cmd.data_root.empty())
         RootDataDirectory = cmd.data_root;
 
+    try {
+        inner_main();
+    }
+    catch (const char* what) {
+        gfx_show_catched_error(what);
+        return 1;
+    }
+    catch (const std::string& ex) {
+        gfx_show_catched_error(ex);
+        return 1;
+    }
+    catch (const std::exception& ex) {
+        gfx_show_catched_error(ex.what());
+        return 1;
+    }
+    catch (...) {
+        gfx_show_catched_error({});
+        return 1;
+    }
+
+    return 0;
+}
+
+void inner_main()
+{
     ensureSettingsDir();
-
-    rm = new CResourceManager();
-
-	g_map = new CMap();
-	g_tilesetmanager = new CTilesetManager();
-	filterslist = new FiltersList();
-	maplist = new MapList(true);
-    menugraphicspacklist = new GraphicsList;
-    gamegraphicspacklist = new GraphicsList;
-    worldlist = new WorldList;
-
-	game_values.sound = false;
-	game_values.music = false;
 
     /* This must occur before any data files are loaded */
     Initialize_Paths();
@@ -485,7 +499,7 @@ int main(int argc, char *argv[])
             saved_col = editor_settings.read_i32();
             saved_row = editor_settings.read_i32();
             g_fFullScreen = editor_settings.read_bool();
-            editor_settings.read_string_long(findstring, FILEBUFSIZE);
+            findstring = editor_settings.read_string_long(FILEBUFSIZE);
         }
     }
 
@@ -493,7 +507,19 @@ int main(int argc, char *argv[])
 	blitdest = screen;
 	editorharness::init();
 	editorharness::setDumper(&dumpEditorState);
-	g_tilesetmanager->init(convertPath("gfx/Classic/tilesets").c_str());
+
+        rm = new CResourceManager();
+
+        g_map = new CMap();
+        g_tilesetmanager = new CTilesetManager(convertPath("gfx/Classic/tilesets"));
+        filterslist = new FiltersList();
+        maplist = new MapList(true);
+        menugraphicspacklist = new GraphicsList;
+        gamegraphicspacklist = new GraphicsList;
+        worldlist = new WorldList;
+
+        game_values.sound = false;
+        game_values.music = false;
 
 	char title[128];
 	sprintf(title, "%s %s", TITLESTRING, MAPTITLESTRING);
@@ -503,107 +529,107 @@ int main(int argc, char *argv[])
 
 	printf("\n---------------- loading graphics ----------------\n");
 
-	spr_warps[0] = gfxSprite(convertPath("gfx/leveleditor/leveleditor_warp.png"), colors::MAGENTA);
-	spr_warps[1] = gfxSprite(convertPath("gfx/leveleditor/leveleditor_warp_preview.png"), colors::MAGENTA);
-	spr_warps[2] = gfxSprite(convertPath("gfx/leveleditor/leveleditor_warp_thumbnail.png"), colors::MAGENTA);
+	spr_warps[0] = ImageLoader(convertPath("gfx/leveleditor/leveleditor_warp.png")).create();
+	spr_warps[1] = ImageLoader(convertPath("gfx/leveleditor/leveleditor_warp_preview.png")).create();
+	spr_warps[2] = ImageLoader(convertPath("gfx/leveleditor/leveleditor_warp_thumbnail.png")).create();
 
-	spr_path = gfxSprite(convertPath("gfx/leveleditor/leveleditor_world_path.png"), colors::MAGENTA);
+	spr_path = ImageLoader(convertPath("gfx/leveleditor/leveleditor_world_path.png")).create();
 
-	rm->spr_selectedtile = gfxSprite(convertPath("gfx/leveleditor/leveleditor_selectedtile.png"), colors::BLACK, 128);
+        rm->spr_selectedtile = ImageLoader(convertPath("gfx/leveleditor/leveleditor_selectedtile.png")).withColorKey(colors::BLACK).withAlpha(128).create();
 
-	spr_dialog = gfxSprite(convertPath("gfx/leveleditor/leveleditor_dialog.png"), colors::MAGENTA, 255);
-	menu_shade = gfxSprite(convertPath("gfx/leveleditor/leveleditor_shade.png"), colors::MAGENTA, 128);
-	spr_largedialog = gfxSprite(convertPath("gfx/leveleditor/leveleditor_platform.png"), colors::MAGENTA, 255);
+	spr_dialog = ImageLoader(convertPath("gfx/leveleditor/leveleditor_dialog.png")).withAlpha(255).create();
+	menu_shade = ImageLoader(convertPath("gfx/leveleditor/leveleditor_shade.png")).withAlpha(128).create();
+	spr_largedialog = ImageLoader(convertPath("gfx/leveleditor/leveleditor_platform.png")).withAlpha(255).create();
 
-	rm->menu_font_small.init(convertPath("gfx/packs/Classic/fonts/font_small.png"));
-	rm->menu_font_large.init(convertPath("gfx/packs/Classic/fonts/font_large.png"));
+	rm->menu_font_small = gfxFont(convertPath("gfx/packs/Classic/fonts/font_small.png"));
+	rm->menu_font_large = gfxFont(convertPath("gfx/packs/Classic/fonts/font_large.png"));
 
 
 	printf("\n---------------- load world ----------------\n");
 
-	rm->spr_worldbackground[0] = gfxSprite(convertPath("gfx/packs/Classic/world/world_background.png"), colors::MAGENTA);
-	rm->spr_worldbackground[1] = gfxSprite(convertPath("gfx/packs/Classic/world/preview/world_background.png"), colors::MAGENTA);
-	rm->spr_worldbackground[2] = gfxSprite(convertPath("gfx/packs/Classic/world/thumbnail/world_background.png"), colors::MAGENTA);
+	rm->spr_worldbackground[0] = ImageLoader(convertPath("gfx/packs/Classic/world/world_background.png")).create();
+	rm->spr_worldbackground[1] = ImageLoader(convertPath("gfx/packs/Classic/world/preview/world_background.png")).create();
+	rm->spr_worldbackground[2] = ImageLoader(convertPath("gfx/packs/Classic/world/thumbnail/world_background.png")).create();
 
-	rm->spr_worldforeground[0] = gfxSprite(convertPath("gfx/packs/Classic/world/world_foreground.png"), colors::MAGENTA);
-	rm->spr_worldforeground[1] = gfxSprite(convertPath("gfx/packs/Classic/world/preview/world_foreground.png"), colors::MAGENTA);
-	rm->spr_worldforeground[2] = gfxSprite(convertPath("gfx/packs/Classic/world/thumbnail/world_foreground.png"), colors::MAGENTA);
+	rm->spr_worldforeground[0] = ImageLoader(convertPath("gfx/packs/Classic/world/world_foreground.png")).create();
+	rm->spr_worldforeground[1] = ImageLoader(convertPath("gfx/packs/Classic/world/preview/world_foreground.png")).create();
+	rm->spr_worldforeground[2] = ImageLoader(convertPath("gfx/packs/Classic/world/thumbnail/world_foreground.png")).create();
 
-	rm->spr_worldforegroundspecial[0] = gfxSprite(convertPath("gfx/packs/Classic/world/world_foreground_special.png"), colors::MAGENTA);
-	rm->spr_worldforegroundspecial[1] = gfxSprite(convertPath("gfx/packs/Classic/world/preview/world_foreground_special.png"), colors::MAGENTA);
-	rm->spr_worldforegroundspecial[2] = gfxSprite(convertPath("gfx/packs/Classic/world/thumbnail/world_foreground_special.png"), colors::MAGENTA);
+	rm->spr_worldforegroundspecial[0] = ImageLoader(convertPath("gfx/packs/Classic/world/world_foreground_special.png")).create();
+	rm->spr_worldforegroundspecial[1] = ImageLoader(convertPath("gfx/packs/Classic/world/preview/world_foreground_special.png")).create();
+	rm->spr_worldforegroundspecial[2] = ImageLoader(convertPath("gfx/packs/Classic/world/thumbnail/world_foreground_special.png")).create();
 
-	rm->spr_worldpaths[0] = gfxSprite(convertPath("gfx/packs/Classic/world/world_paths.png"), colors::MAGENTA);
-	rm->spr_worldpaths[1] = gfxSprite(convertPath("gfx/packs/Classic/world/preview/world_paths.png"), colors::MAGENTA);
-	rm->spr_worldpaths[2] = gfxSprite(convertPath("gfx/packs/Classic/world/thumbnail/world_paths.png"), colors::MAGENTA);
+	rm->spr_worldpaths[0] = ImageLoader(convertPath("gfx/packs/Classic/world/world_paths.png")).create();
+	rm->spr_worldpaths[1] = ImageLoader(convertPath("gfx/packs/Classic/world/preview/world_paths.png")).create();
+	rm->spr_worldpaths[2] = ImageLoader(convertPath("gfx/packs/Classic/world/thumbnail/world_paths.png")).create();
 
-	rm->spr_worldvehicle[0] = gfxSprite(convertPath("gfx/packs/Classic/world/world_vehicles.png"), colors::MAGENTA);
-	rm->spr_worldvehicle[1] = gfxSprite(convertPath("gfx/packs/Classic/world/preview/world_vehicles.png"), colors::MAGENTA);
-	rm->spr_worldvehicle[2] = gfxSprite(convertPath("gfx/packs/Classic/world/thumbnail/world_vehicles.png"), colors::MAGENTA);
+	rm->spr_worldvehicle[0] = ImageLoader(convertPath("gfx/packs/Classic/world/world_vehicles.png")).create();
+	rm->spr_worldvehicle[1] = ImageLoader(convertPath("gfx/packs/Classic/world/preview/world_vehicles.png")).create();
+	rm->spr_worldvehicle[2] = ImageLoader(convertPath("gfx/packs/Classic/world/thumbnail/world_vehicles.png")).create();
 
-	rm->spr_worlditems = gfxSprite(convertPath("gfx/packs/Classic/world/world_powerups.png"), colors::MAGENTA);
-	rm->spr_worlditempopup = gfxSprite(convertPath("gfx/packs/Classic/world/world_item_popup.png"), colors::MAGENTA);
+	rm->spr_worlditems = ImageLoader(convertPath("gfx/packs/Classic/world/world_powerups.png")).create();
+	rm->spr_worlditempopup = ImageLoader(convertPath("gfx/packs/Classic/world/world_item_popup.png")).create();
 
-	rm->spr_storedpowerupsmall = gfxSprite(convertPath("gfx/packs/Classic/powerups/small.png"), colors::MAGENTA);
-	rm->spr_worlditemssmall = gfxSprite(convertPath("gfx/packs/Classic/world/world_powerupssmall.png"), colors::MAGENTA);
-	rm->spr_worlditemsplace = gfxSprite(convertPath("gfx/packs/Classic/world/world_bonusplace.png"), colors::MAGENTA);
+	rm->spr_storedpowerupsmall = ImageLoader(convertPath("gfx/packs/Classic/powerups/small.png")).create();
+	rm->spr_worlditemssmall = ImageLoader(convertPath("gfx/packs/Classic/world/world_powerupssmall.png")).create();
+	rm->spr_worlditemsplace = ImageLoader(convertPath("gfx/packs/Classic/world/world_bonusplace.png")).create();
 
-	rm->menu_dialog = gfxSprite(convertPath("gfx/packs/Classic/menu/menu_dialog.png"), colors::MAGENTA);
+	rm->menu_dialog = ImageLoader(convertPath("gfx/packs/Classic/menu/menu_dialog.png")).create();
 
 	//Mode Options Menu Gfx
-	rm->menu_egg = gfxSprite(convertPath("gfx/packs/Classic/modeobjects/menu_egg.png"), colors::MAGENTA);
-	rm->menu_stomp = gfxSprite(convertPath("gfx/packs/Classic/modeobjects/menu_stomp.png"), colors::MAGENTA);
-	rm->menu_survival = gfxSprite(convertPath("gfx/packs/Classic/modeobjects/menu_survival.png"), colors::MAGENTA);
-	rm->spr_phanto = gfxSprite(convertPath("gfx/packs/Classic/modeobjects/phanto.png"), colors::MAGENTA);
-	rm->menu_plain_field = gfxSprite(convertPath("gfx/leveleditor/menu_plain_field.png"), colors::MAGENTA);
-	rm->menu_slider_bar = gfxSprite(convertPath("gfx/packs/Classic/menu/menu_slider_bar.png"), colors::MAGENTA);
-	rm->spr_selectfield = gfxSprite(convertPath("gfx/leveleditor/menu_selectfield.png"), colors::MAGENTA);
-	rm->menu_verticalarrows = gfxSprite(convertPath("gfx/packs/Classic/menu/menu_vertical_arrows.png"), colors::MAGENTA);
-	rm->spr_storedpoweruplarge = gfxSprite(convertPath("gfx/packs/Classic/powerups/large.png"), colors::MAGENTA);
+	rm->menu_egg = ImageLoader(convertPath("gfx/packs/Classic/modeobjects/menu_egg.png")).create();
+	rm->menu_stomp = ImageLoader(convertPath("gfx/packs/Classic/modeobjects/menu_stomp.png")).create();
+	rm->menu_survival = ImageLoader(convertPath("gfx/packs/Classic/modeobjects/menu_survival.png")).create();
+	rm->spr_phanto = ImageLoader(convertPath("gfx/packs/Classic/modeobjects/phanto.png")).create();
+	rm->menu_plain_field = ImageLoader(convertPath("gfx/leveleditor/menu_plain_field.png")).create();
+	rm->menu_slider_bar = ImageLoader(convertPath("gfx/packs/Classic/menu/menu_slider_bar.png")).create();
+	rm->spr_selectfield = ImageLoader(convertPath("gfx/leveleditor/menu_selectfield.png")).create();
+	rm->menu_verticalarrows = ImageLoader(convertPath("gfx/packs/Classic/menu/menu_vertical_arrows.png")).create();
+	rm->spr_storedpoweruplarge = ImageLoader(convertPath("gfx/packs/Classic/powerups/large.png")).create();
 
-	rm->menu_mode_small = gfxSprite(convertPath("gfx/packs/Classic/menu/menu_mode_small.png"), colors::MAGENTA);
-	rm->menu_mode_large = gfxSprite(convertPath("gfx/packs/Classic/menu/menu_mode_large.png"), colors::MAGENTA);
+	rm->menu_mode_small = ImageLoader(convertPath("gfx/packs/Classic/menu/menu_mode_small.png")).create();
+	rm->menu_mode_large = ImageLoader(convertPath("gfx/packs/Classic/menu/menu_mode_large.png")).create();
 
-	spr_vehicleicons = gfxSprite(convertPath("gfx/leveleditor/vehicle_icons.png"), colors::MAGENTA);
+	spr_vehicleicons = ImageLoader(convertPath("gfx/leveleditor/vehicle_icons.png")).create();
 
-	rm->spr_thumbnail_warps[0] = gfxSprite(convertPath("gfx/packs/Classic/menu/menu_warp_preview.png"), colors::MAGENTA);
-	rm->spr_thumbnail_warps[1] = gfxSprite(convertPath("gfx/packs/Classic/menu/menu_warp_thumbnail.png"), colors::MAGENTA);
+	rm->spr_thumbnail_warps[0] = ImageLoader(convertPath("gfx/packs/Classic/menu/menu_warp_preview.png")).create();
+	rm->spr_thumbnail_warps[1] = ImageLoader(convertPath("gfx/packs/Classic/menu/menu_warp_thumbnail.png")).create();
 
-	rm->spr_thumbnail_mapitems[0] = gfxSprite(convertPath("gfx/packs/Classic/menu/menu_mapitems_preview.png"), colors::MAGENTA);
-	rm->spr_thumbnail_mapitems[1] = gfxSprite(convertPath("gfx/packs/Classic/menu/menu_mapitems_thumbnail.png"), colors::MAGENTA);
+	rm->spr_thumbnail_mapitems[0] = ImageLoader(convertPath("gfx/packs/Classic/menu/menu_mapitems_preview.png")).create();
+	rm->spr_thumbnail_mapitems[1] = ImageLoader(convertPath("gfx/packs/Classic/menu/menu_mapitems_thumbnail.png")).create();
 
-	rm->spr_tileanimation[1] = gfxSprite(convertPath("gfx/packs/Classic/tilesets/tile_animation_preview.png"), colors::MAGENTA);
-	rm->spr_tileanimation[2] = gfxSprite(convertPath("gfx/packs/Classic/tilesets/tile_animation_thumbnail.png"), colors::MAGENTA);
+	rm->spr_tileanimation[1] = ImageLoader(convertPath("gfx/packs/Classic/tilesets/tile_animation_preview.png")).create();
+	rm->spr_tileanimation[2] = ImageLoader(convertPath("gfx/packs/Classic/tilesets/tile_animation_thumbnail.png")).create();
 
-	rm->spr_blocks[1] = gfxSprite(convertPath("gfx/packs/Classic/tilesets/blocks_preview.png"), colors::MAGENTA);
-	rm->spr_blocks[2] = gfxSprite(convertPath("gfx/packs/Classic/tilesets/blocks_thumbnail.png"), colors::MAGENTA);
+	rm->spr_blocks[1] = ImageLoader(convertPath("gfx/packs/Classic/tilesets/blocks_preview.png")).create();
+	rm->spr_blocks[2] = ImageLoader(convertPath("gfx/packs/Classic/tilesets/blocks_thumbnail.png")).create();
 
-	rm->spr_unknowntile[1] = gfxSprite(convertPath("gfx/packs/Classic/tilesets/unknown_tile_preview.png"), colors::MAGENTA);
-	rm->spr_unknowntile[2] = gfxSprite(convertPath("gfx/packs/Classic/tilesets/unknown_tile_thumbnail.png"), colors::MAGENTA);
+	rm->spr_unknowntile[1] = ImageLoader(convertPath("gfx/packs/Classic/tilesets/unknown_tile_preview.png")).create();
+	rm->spr_unknowntile[2] = ImageLoader(convertPath("gfx/packs/Classic/tilesets/unknown_tile_thumbnail.png")).create();
 
-	rm->spr_hazard_fireball[1] = gfxSprite(convertPath("gfx/packs/Classic/hazards/fireball_preview.png"), colors::MAGENTA);
-	rm->spr_hazard_fireball[2] = gfxSprite(convertPath("gfx/packs/Classic/hazards/fireball_thumbnail.png"), colors::MAGENTA);
+	rm->spr_hazard_fireball[1] = ImageLoader(convertPath("gfx/packs/Classic/hazards/fireball_preview.png")).create();
+	rm->spr_hazard_fireball[2] = ImageLoader(convertPath("gfx/packs/Classic/hazards/fireball_thumbnail.png")).create();
 
-	rm->spr_hazard_rotodisc[1] = gfxSprite(convertPath("gfx/packs/Classic/hazards/rotodisc_preview.png"), colors::MAGENTA);
-	rm->spr_hazard_rotodisc[2] = gfxSprite(convertPath("gfx/packs/Classic/hazards/rotodisc_thumbnail.png"), colors::MAGENTA);
+	rm->spr_hazard_rotodisc[1] = ImageLoader(convertPath("gfx/packs/Classic/hazards/rotodisc_preview.png")).create();
+	rm->spr_hazard_rotodisc[2] = ImageLoader(convertPath("gfx/packs/Classic/hazards/rotodisc_thumbnail.png")).create();
 
-	rm->spr_hazard_bulletbill[1] = gfxSprite(convertPath("gfx/packs/Classic/hazards/bulletbill_preview.png"), colors::MAGENTA);
-	rm->spr_hazard_bulletbill[2] = gfxSprite(convertPath("gfx/packs/Classic/hazards/bulletbill_thumbnail.png"), colors::MAGENTA);
+	rm->spr_hazard_bulletbill[1] = ImageLoader(convertPath("gfx/packs/Classic/hazards/bulletbill_preview.png")).create();
+	rm->spr_hazard_bulletbill[2] = ImageLoader(convertPath("gfx/packs/Classic/hazards/bulletbill_thumbnail.png")).create();
 
-	rm->spr_hazard_flame[1] = gfxSprite(convertPath("gfx/packs/Classic/hazards/flame_preview.png"), colors::MAGENTA);
-	rm->spr_hazard_flame[2] = gfxSprite(convertPath("gfx/packs/Classic/hazards/flame_thumbnail.png"), colors::MAGENTA);
+	rm->spr_hazard_flame[1] = ImageLoader(convertPath("gfx/packs/Classic/hazards/flame_preview.png")).create();
+	rm->spr_hazard_flame[2] = ImageLoader(convertPath("gfx/packs/Classic/hazards/flame_thumbnail.png")).create();
 
-	rm->spr_hazard_pirhanaplant[1] = gfxSprite(convertPath("gfx/packs/Classic/hazards/pirhanaplant_preview.png"), colors::MAGENTA);
-	rm->spr_hazard_pirhanaplant[2] = gfxSprite(convertPath("gfx/packs/Classic/hazards/pirhanaplant_thumbnail.png"), colors::MAGENTA);
+	rm->spr_hazard_pirhanaplant[1] = ImageLoader(convertPath("gfx/packs/Classic/hazards/pirhanaplant_preview.png")).create();
+	rm->spr_hazard_pirhanaplant[2] = ImageLoader(convertPath("gfx/packs/Classic/hazards/pirhanaplant_thumbnail.png")).create();
 
 	rm->loadMenuGraphics();
 
-	sMapSurface = SDL_CreateRGBSurface(screen->flags, 768, 608, screen->format->BitsPerPixel, 0, 0, 0, 0);
+	sMapSurface = gfxSprite::blank(768, 608);
 
     worldlist->find(findstring);
     game_values.worldindex = worldlist->currentIndex();
 	loadcurrentworld();
-	findstring[0] = 0;  //clear out the find string so that pressing "f" will give you the find dialog
+	findstring.clear();  //clear out the find string so that pressing "f" will give you the find dialog
 
     if (saved_row >= 0 && saved_row <= iWorldHeight - 15 && saved_col >= 0 && saved_col <= iWorldWidth - 20) {
 		draw_offset_row = saved_row;
@@ -1031,8 +1057,6 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	SDL_FreeSurface(sMapSurface);
-
 	printf("\n---------------- save world ----------------\n");
 
 	WriteVehiclesIntoWorld();
@@ -1051,7 +1075,6 @@ int main(int argc, char *argv[])
     }
 
 	printf("\n---------------- shutdown ----------------\n");
-	return 0;
 }
 
 
@@ -1214,8 +1237,8 @@ int editor_edit()
 							fAutoPaint = !fAutoPaint;
 
                     if (event.key.keysym.sym == SDLK_r) {
-							if (g_musiccategorydisplaytimer > 0 && g_worldmap.iMusicCategory == WorldMusicCategory::Sleep)  // FIXME
-								g_worldmap.iMusicCategory = WorldMusicCategory::Grass;
+							if (g_musiccategorydisplaytimer > 0)
+								g_worldmap.iMusicCategory++;
 
 							g_musiccategorydisplaytimer = 90;
 						}
@@ -1228,7 +1251,7 @@ int editor_edit()
 						}
 
                     if (event.key.keysym.sym == SDLK_f) {
-							if (CheckKey(keystate, SDLK_LSHIFT) || CheckKey(keystate, SDLK_RSHIFT) || findstring[0] == '\0')
+							if (CheckKey(keystate, SDLK_LSHIFT) || CheckKey(keystate, SDLK_RSHIFT) || findstring.empty())
 								return FIND;
 
 							findcurrentstring();
@@ -2449,7 +2472,7 @@ bool AutoSetTile(short iCol, short iRow)
 
 void updateworldsurface()
 {
-	g_worldmap.DrawMapToSurface(-1, true, sMapSurface, draw_offset_col, draw_offset_row, 0);
+	g_worldmap.DrawMapToSurface(-1, true, sMapSurface.getSurface(), draw_offset_col, draw_offset_row, 0);
 }
 
 void drawmap(bool fScreenshot, short iBlockSize)
@@ -2457,7 +2480,7 @@ void drawmap(bool fScreenshot, short iBlockSize)
 	if (fNeedBlackBackground)
 		SDL_FillRect(screen, NULL, 0x0);
 
-	SDL_BlitSurface(sMapSurface, &rectSrcSurface, blitdest, &rectDstSurface);
+	sMapSurface.draw(rectSrcSurface, blitdest, rectDstSurface);
 }
 
 int editor_warp()
@@ -3420,29 +3443,23 @@ void DisplayStageDetails(bool fForce, short iStageId, short iMouseX, short iMous
 {
 	TourStop * ts = game_values.tourstops[iStageId];
 
-	//If we're pointing to a new stage or no stage at all
+    //If we're pointing to a new stage or no stage at all
     if (iStageId != iOldStageId || fForce) {
         if (ts->iStageType == 1) {
-            if (sMapThumbnail) {
-				SDL_FreeSurface(sMapThumbnail);
-				sMapThumbnail = NULL;
-			}
+            sMapThumbnail = gfxSprite();
         } else {
             if (!ts->pszMapFile.empty()) {
-                if (sMapThumbnail) {
-					SDL_FreeSurface(sMapThumbnail);
-					sMapThumbnail = NULL;
-				}
+                sMapThumbnail = gfxSprite();
 
                 if (maplist->findexact(ts->pszMapFile.c_str(), false)) {
-					g_map->loadMap(maplist->currentFilename(), read_type_preview);
-					sMapThumbnail = g_map->createThumbnailSurface(true);
+                    g_map->loadMap(maplist->currentFilename(), read_type_preview);
+                    sMapThumbnail = g_map->createThumbnailSurface(true);
                 } else { //otherwise show a unknown map icon
-					sMapThumbnail = IMG_Load(convertPath("gfx/leveleditor/leveleditor_mapnotfound.png").c_str());
-				}
-			}
-		}
-	}
+                    sMapThumbnail = ImageLoader(convertPath("gfx/leveleditor/leveleditor_mapnotfound.png")).withoutColorKey().create();
+                }
+            }
+        }
+    }
 
 	iOldStageId = iStageId;
 
@@ -3500,11 +3517,10 @@ void DisplayStageDetails(bool fForce, short iStageId, short iMouseX, short iMous
 		}
 
         if (sMapThumbnail) {
-			SDL_Rect rSrc = {0, 0, 160, 120};
-			SDL_Rect rDst = {iMouseX + 16, iMouseY + 52, 160, 120};
-
-			SDL_BlitSurface(sMapThumbnail, &rSrc, blitdest, &rDst);
-		}
+            const SDL_Rect rSrc {0, 0, 160, 120};
+            const SDL_Rect rDst {iMouseX + 16, iMouseY + 52, 160, 120};
+            sMapThumbnail.draw(rSrc, blitdest, rDst);
+        }
     } else {
 		sprintf(szPrint, "Sort: %s", ts->iBonusType == 0 ? "Fixed" : "Random");
 		rm->menu_font_small.drawChopRight(iMouseX + 52, iMouseY + 34, 164, szPrint);
@@ -4565,7 +4581,7 @@ int find()
 	//char mapLocation[FILEBUFSIZE] = "maps/";
 
     if (dialog("Find Map", "Enter name:", fileName, 64)) {
-		strcpy(findstring, fileName);
+		findstring = fileName;
 
         if (worldlist->find(findstring)) {
             game_values.worldindex = worldlist->currentIndex();
@@ -4650,7 +4666,7 @@ void SetDisplayMessage(short iTime,
 
 int findcurrentstring()
 {
-    if (findstring[0] != '\0') {
+    if (!findstring.empty()) {
         if (worldlist->find(findstring)) {
             game_values.worldindex = worldlist->currentIndex();
 			loadcurrentworld();
@@ -4762,10 +4778,10 @@ void takescreenshot()
 		g_worldmap.GetWorldSize(&w, &h);
 
 		//Draw most of the world to screenshot
-		SDL_Surface * sScreenshot = SDL_CreateRGBSurface(screen->flags, iTileSize * w, iTileSize * h, screen->format->BitsPerPixel, 0, 0, 0, 0);
-		blitdest = sScreenshot;
+		auto sScreenshot = gfxSprite::blank(iTileSize * w, iTileSize * h);
+		blitdest = sScreenshot.getSurface();
 
-		g_worldmap.DrawMapToSurface(sScreenshot);
+		g_worldmap.DrawMapToSurface(sScreenshot.getSurface());
 
 		//Draw vehicles to screenshot
 		std::vector<WorldVehicle*>::iterator itr = vehiclelist.begin(), lim = vehiclelist.end();
@@ -4804,9 +4820,7 @@ void takescreenshot()
 			szSaveFile += "_thumb";
 
 		szSaveFile += ".png";
-		IMG_SavePNG(sScreenshot, convertPath(szSaveFile).c_str());
-
-		SDL_FreeSurface(sScreenshot);
+		IMG_SavePNG(sScreenshot.getSurface(), convertPath(szSaveFile).c_str());
 	}
 
 	g_worldmap = WorldMap(worldlist->at(game_values.worldindex).string(), iTileSizes[0]);

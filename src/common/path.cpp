@@ -160,20 +160,12 @@ std::string convertPath(std::string_view relpath, const std::filesystem::path& p
         //If the file exists, return the path to it
         fs::path path = packdir / relpath;
         if (fs::exists(path))
-            return path.string();
+            return path.generic_string();
 
         //If not, use the classic file
         return convertPath(std::string(prefix) + "Classic/" + std::string(relpath));  // FIXME
     }
     return convertPath(std::string(relpath));
-}
-
-std::string getFilenameFromPath(const std::string& path)
-{
-    size_t pos = path.find_last_of(dirSeparator());
-    return pos != std::string::npos
-        ? path.substr(pos + 1)
-        : path;
 }
 
 // Takes a path to a file and gives you back the file name (with or without author) as a char *

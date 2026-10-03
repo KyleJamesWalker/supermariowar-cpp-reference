@@ -2,6 +2,7 @@
 #define GFX_SPRITE
 
 #include "gfx/Color.h"
+#include "math/Vec2.h"
 #include "util/SdlHelpers.h"
 
 #include "SDL.h"
@@ -14,25 +15,40 @@ enum class ClipEdge : unsigned char { Top, Right, Bottom, Left };
 
 class gfxSprite {
 public:
-    gfxSprite() = default;
-    gfxSprite(
-        const std::filesystem::path& filename,
-        std::optional<RGB> color_key = colors::MAGENTA,
-        std::optional<Uint8> alpha = std::nullopt,
-        std::optional<int> wrap = std::nullopt);
-    gfxSprite(SdlSurfacePtr image, std::optional<int> wrap = 640);
+    explicit gfxSprite() = default;
+    explicit gfxSprite(SdlSurfacePtr image, std::optional<int> wrap = 640);
 
-    /// Draw the whole sprite at the given coordinate.
+    static gfxSprite blank(unsigned w, unsigned h);
+
+    /// Draw the whole sprite at the given coordinate. Applies camera shaking.
     void draw(int x, int y) const;
-    /// Draw part of the sprite at the given coordinate.
+    /// Draw part of the sprite at the given coordinate. Applies camera shaking.
     void draw(int x, int y, const SDL_Rect& srcRect) const;
     /// Draw part of the sprite at the given coordinate, clipped along a given direction.
-    /// Used mainly for warping and drawing previews.
+    /// Used mainly for warping and drawing previews. Applies camera shaking.
     /// TODO: Most of the caller sites don't use std::optional. By updating the code there
     /// this function could be merged with the one without the clip parameters.
     void draw(int x, int y, const SDL_Rect& srcRect, ClipEdge clipEdge, int clipTreshold) const;
+
+   /// Draw the whole sprite on a target surface at a target coordinate.
+    void draw(SDL_Surface* dst, Vec2i dstPos) const {
+        blit(nullptr, dst, dstPos);
+    }
+    /// Draw the whole sprite on a target surface at a target coordinate.
+    void draw(SDL_Surface* dst, const SDL_Rect& dstRect) const {
+        blit(nullptr, dst, Vec2i {dstRect.x, dstRect.y});
+    }
+    /// Draw part of the sprite on a target surface at a target coordinate.
+    void draw(const SDL_Rect& srcRect, SDL_Surface* dst, Vec2i dstPos) const {
+        blit(&srcRect, dst, dstPos);
+    }
+    /// Draw part of the sprite on a target surface at a target coordinate.
+    void draw(const SDL_Rect& srcRect, SDL_Surface* dst, const SDL_Rect& dstRect) const {
+        blit(&srcRect, dst, Vec2i {dstRect.x, dstRect.y});
+    }
+
     /// Draw a part of the sprite scaled to a destination area.
-    void drawStretch(const SDL_Rect& dstRect, const SDL_Rect& srcRect) const;
+    void drawStretch(const SDL_Rect& srcRect, SDL_Surface* dst, const SDL_Rect& dstRect) const;
 
     void setalpha(Uint8 alpha);
 
@@ -44,44 +60,46 @@ public:
     void setWrap(short wrapsize = 640);
     bool isWrapping() const { return m_wrap_x.has_value(); }
 
+    explicit operator bool() const { return getSurface(); }
+
 private:
     SdlSurfacePtr m_picture;
     std::optional<int> m_wrap_x = std::nullopt;
+
+    void blit(const SDL_Rect* srcRect, SDL_Surface* dst, Vec2i dstPos) const;
 };
 
 
-class SpriteBuilder {
+class ImageLoader {
 public:
-    SpriteBuilder(std::filesystem::path path)
+    explicit ImageLoader(std::filesystem::path path)
         : m_path(std::move(path))
     {}
-
-    SpriteBuilder& withColorKey(RGB key) {
+    ImageLoader& withColorKey(RGB key) {
         m_color_key = key;
         return *this;
     }
-
-    SpriteBuilder& withoutColorKey() {
+    ImageLoader& withoutColorKey() {
         m_color_key = std::nullopt;
         return *this;
     }
-
-    SpriteBuilder& withAlpha(Uint8 alpha) {
+    ImageLoader& withAlpha(Uint8 alpha) {
         m_alpha = alpha;
         return *this;
     }
-
-    SpriteBuilder& withWrapping(int wrap_x = 640) {
+    ImageLoader& withWrapping(int wrap_x = 640) {
         m_wrap_x = wrap_x;
         return *this;
     }
-
-    gfxSprite create() const {
-        return gfxSprite(m_path, m_color_key, m_alpha, m_wrap_x);
+    ImageLoader& withoutOptimization() {
+        m_optimize = false;
+        return *this;
     }
+    gfxSprite create() const;
 
 private:
     std::filesystem::path m_path;
+    bool m_optimize = true;
     std::optional<RGB> m_color_key = colors::MAGENTA;
     std::optional<Uint8> m_alpha = std::nullopt;
     std::optional<int> m_wrap_x = std::nullopt;

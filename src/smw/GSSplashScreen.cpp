@@ -53,7 +53,7 @@ bool SplashScreenState::init()
 //  gfx_loadimagenocolorkey(&rm->menu_contest_winners, convertPath("gfx/packs/menu/splash_contest_winners.png", menugraphicspacklist->current_name()));
 
     menu_credits = new gfxSprite();
-    *menu_credits = SpriteBuilder(convertPath("gfx/packs/menu/splash_credits.png", menugraphicspacklist->currentPath())).create();
+    *menu_credits = ImageLoader(convertPath("gfx/packs/menu/splash_credits.png", menugraphicspacklist->currentPath())).create();
 
 //	const char * contributors[] = {
 //	"no_shorty", "redfalcon", "no_human", "dschingis", "funvill",
@@ -242,7 +242,7 @@ void SplashScreenState::update()
         rm->menu_version.setalpha((Uint8)alpha);
         rm->menu_version.draw(628 - rm->menu_version.getWidth(), 10); //smw logo
 
-        rm->menu_font_large.setalpha((Uint8)alpha);
+        rm->menu_font_large.setAlpha((Uint8)alpha);
         //rm->menu_font_large.drawRightJustified(App::screenWidth * 0.98f, 45, "WIP");
 
         menu_credits->setalpha((Uint8)alpha);

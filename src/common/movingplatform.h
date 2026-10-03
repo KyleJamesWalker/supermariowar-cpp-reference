@@ -4,6 +4,8 @@
 #include "map.h"
 #include "MovingPlatformPaths.h"
 
+#include <array>
+
 class CPlayer;
 class IO_MovingObject;
 
@@ -53,6 +55,8 @@ class MovingPlatform
     const TilesetTile& tileAt(size_t col, size_t row) const;
     TileType tileTypeAt(size_t col, size_t row) const;
 
+    void paintSpriteAt(const gfxSprite& spr, size_t col, size_t row);
+
 	protected:
 
 		void check_map_collision_right(CPlayer * player);
@@ -79,7 +83,7 @@ class MovingPlatform
 		short iSteps;
 		short iOnStep;
 
-		SDL_Surface	* sSurface[2];
+		std::array<gfxSprite, 2> sprites;
 
 		SDL_Rect	rSrcRect;
 		SDL_Rect    rDstRect;

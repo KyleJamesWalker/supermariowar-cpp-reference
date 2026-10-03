@@ -24,19 +24,29 @@ extern CGameValues game_values;
 
 bool CResourceManager::LoadMenuSkin(short playerID, short skinID, short colorID, bool fLoadBothDirections)
 {
-    try {
-        spr_player[playerID] = gfx_loadmenuskin(skinlist->at(skinID).path, colorID, fLoadBothDirections);
-        return true;
-    } catch (const std::string& what) {
-        std::cout << "ERROR: " << what << std::endl;
-        return false;
-    }
+    return LoadMenuSkin(playerID, skinlist->at(skinID).path, colorID, fLoadBothDirections);
 }
 
-bool CResourceManager::LoadMenuSkin(short playerID, const fs::path& filename, short colorID, bool fLoadBothDirections)
+bool CResourceManager::LoadMenuSkin(short playerID, const fs::path& path, short colorID, bool fLoadBothDirections)
 {
+    LoadedSpriteInfo new_info {
+        .path = path,
+        .colorScheme = colorID,
+    };
+    // We might not need to load again if all frames are present
+    // STANDING_R and RUNNING_R is always loaded, so needs no check,
+    // STANDING_L and RUNNING_L is loaded only when both directions are requested
+    if (loaded_player_sprites[playerID] == new_info) {
+        const bool both_dirs_present = spr_player[playerID][PGFX_STANDING_L] && spr_player[playerID][PGFX_RUNNING_L];
+        const bool already_loaded = !fLoadBothDirections || both_dirs_present;
+        if (already_loaded) {
+            return true;
+        }
+    }
+
     try {
-        spr_player[playerID] = gfx_loadmenuskin(filename, colorID, fLoadBothDirections);
+        spr_player[playerID] = gfx_loadmenuskin(path, colorID, fLoadBothDirections);
+        loaded_player_sprites[playerID] = std::move(new_info);
         return true;
     } catch (const std::string& what) {
         std::cout << "ERROR: " << what << std::endl;
@@ -57,7 +67,7 @@ SpriteStrip CResourceManager::LoadFullSkin(short skinID, short colorID)
 void CResourceManager::loadAllSprites() {
     const fs::path graphicspack = gamegraphicspacklist->currentPath();
     const auto builder = [&graphicspack](std::string_view relpath) {
-        return SpriteBuilder(convertPath(relpath, graphicspack));
+        return ImageLoader(convertPath(relpath, graphicspack));
     };
 
     std::string shyguyPath = convertPath("gfx/packs/modeskins/shyguy.png", graphicspack);
@@ -296,7 +306,7 @@ void CResourceManager::loadMenuGraphics()
 {
     const fs::path graphicspack = menugraphicspacklist->currentPath();
     const auto builder = [&graphicspack](std::string_view relpath) {
-        return SpriteBuilder(convertPath(relpath, graphicspack));
+        return ImageLoader(convertPath(relpath, graphicspack));
     };
 
     menu_shade = builder("gfx/packs/menu/menu_shade.png").withAlpha(App::menuTransparency).withoutColorKey().create();
@@ -343,7 +353,7 @@ void CResourceManager::loadWorldGraphics()
 {
     const fs::path graphicspack = worldgraphicspacklist->currentPath();
     const auto builder = [&graphicspack](std::string_view relpath) {
-        return SpriteBuilder(convertPath(relpath, graphicspack));
+        return ImageLoader(convertPath(relpath, graphicspack));
     };
 
     spr_worldbackground[0] = builder("gfx/packs/world/world_background.png").create();
@@ -372,13 +382,10 @@ void CResourceManager::loadGameGraphics()
 {
     std::string graphicspack = gamegraphicspacklist->currentPath().string();
 
-    g_tilesetmanager->init(graphicspack);
+    g_tilesetmanager = new CTilesetManager(graphicspack);
 
-    bool loadok = true;
-    loadok &= game_font_small.init(convertPath("gfx/packs/fonts/font_small.png", graphicspack));
-    loadok &= game_font_large.init(convertPath("gfx/packs/fonts/font_large.png", graphicspack));
-    if (!loadok)
-        throw "ERROR: error loading the fonts!";
+    game_font_small = gfxFont(convertPath("gfx/packs/fonts/font_small.png", graphicspack));
+    game_font_large = gfxFont(convertPath("gfx/packs/fonts/font_large.png", graphicspack));
 
     loadAllSprites();
 }
@@ -387,14 +394,11 @@ void CResourceManager::loadStartGraphics()
 {
     const fs::path graphicspack = menugraphicspacklist->currentPath();
     const auto builder = [&graphicspack](std::string_view relpath) {
-        return SpriteBuilder(convertPath(relpath, graphicspack));
+        return ImageLoader(convertPath(relpath, graphicspack));
     };
 
-    bool loadok = true;
-    loadok &= menu_font_small.init(convertPath("gfx/packs/menu/menu_font_small.png", graphicspack));
-    loadok &= menu_font_large.init(convertPath("gfx/packs/menu/menu_font_large.png", graphicspack));
-    if (!loadok)
-        throw "ERROR: error loading the fonts!";
+    menu_font_small = gfxFont(convertPath("gfx/packs/menu/menu_font_small.png", graphicspack));
+    menu_font_large = gfxFont(convertPath("gfx/packs/menu/menu_font_large.png", graphicspack));
 
     //load basic stuff
     menu_backdrop = builder("gfx/packs/menu/menu_background.png").withoutColorKey().create();
@@ -406,7 +410,7 @@ void CResourceManager::loadAllGraphics()
 {
     const fs::path graphicspack = gamegraphicspacklist->currentPath();
     const auto builder = [&graphicspack](std::string_view relpath) {
-        return SpriteBuilder(convertPath(relpath, graphicspack));
+        return ImageLoader(convertPath(relpath, graphicspack));
     };
 
     loadMenuGraphics();

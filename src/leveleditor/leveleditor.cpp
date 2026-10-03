@@ -32,6 +32,7 @@
 #include "movingplatform.h"
 #include "path.h"
 #include "FileIO.h"
+#include "FileList.h"
 #include "ResourceManager.h"
 #include "sfx.h"
 #include "TilesetManager.h"
@@ -209,35 +210,30 @@ class MapPlatform
         , types(MAPWIDTH * MAPHEIGHT)
     {}
 
-    ~MapPlatform() {
-        if (preview)
-            SDL_FreeSurface(preview);
-    }
-
     void UpdatePreview() {
         if (!preview) {
-				preview = SDL_CreateRGBSurface(screen->flags, 160, 120, screen->format->BitsPerPixel, 0, 0, 0, 0);
-				SDL_SetColorKey(preview, SDL_TRUE, SDL_MapRGB(preview->format, 255, 0, 255));
-			}
+            preview = gfxSprite::blank(160, 120);
+            SDL_SetColorKey(preview.getSurface(), SDL_TRUE, SDL_MapRGB(preview.getSurface()->format, 255, 0, 255));
+        }
 
-			SDL_FillRect(preview, NULL, SDL_MapRGB(preview->format, 255, 0, 255));
+        SDL_FillRect(preview.getSurface(), NULL, SDL_MapRGB(preview.getSurface()->format, 255, 0, 255));
 
         for (short iPlatformX = 0; iPlatformX < MAPWIDTH; iPlatformX++) {
             for (short iPlatformY = 0; iPlatformY < MAPHEIGHT; iPlatformY++) {
-					TilesetTile * tile = &tiles[iPlatformX * MAPHEIGHT + iPlatformY];
+                TilesetTile * tile = &tiles[iPlatformX * MAPHEIGHT + iPlatformY];
 
-					SDL_Rect bltrect = {iPlatformX << 3, iPlatformY << 3, THUMBTILESIZE, THUMBTILESIZE};
+                SDL_Rect bltrect = {iPlatformX << 3, iPlatformY << 3, THUMBTILESIZE, THUMBTILESIZE};
                 if (tile->iID >= 0) {
-                                            SDL_BlitSurface(g_tilesetmanager->tileset(tile->iID)->surface(2), g_tilesetmanager->rect(2, tile->iCol, tile->iRow), preview, &bltrect);
+                    g_tilesetmanager->tileset(tile->iID)->draw(DrawSize::Thumbnail, CTilesetManager::rect(DrawSize::Thumbnail, tile->iCol, tile->iRow), preview.getSurface(), bltrect);
                 } else if (tile->iID == TILESETANIMATED) {
-                    SDL_BlitSurface(rm->spr_tileanimation[2].getSurface(), g_tilesetmanager->rect(2, tile->iCol * 4, tile->iRow), preview, &bltrect);
+                    rm->spr_tileanimation[2].draw(CTilesetManager::rect(DrawSize::Thumbnail, tile->iCol * 4, tile->iRow), preview.getSurface(), bltrect);
                 } else if (tile->iID == TILESETUNKNOWN) {
-						//Draw unknown tile
-                    SDL_BlitSurface(rm->spr_unknowntile[2].getSurface(), g_tilesetmanager->rect(2, 0, 0), preview, &bltrect);
-					}
-				}
-			}
-		}
+                    //Draw unknown tile
+                    rm->spr_unknowntile[2].draw(CTilesetManager::rect(DrawSize::Thumbnail, 0, 0), preview.getSurface(), bltrect);
+                }
+            }
+        }
+    }
 
     std::vector<TilesetTile> tiles;
     std::vector<TileType> types;
@@ -256,7 +252,7 @@ class MapPlatform
 		short iDrawLayer;
 
 		SDL_Rect rIcon[2];
-		SDL_Surface * preview = nullptr;
+		gfxSprite preview;
 };
 
 TileType * animatedtiletypes;
@@ -267,9 +263,9 @@ bool CheckKey(const Uint8 * keystate, SDL_Keycode key) {
     return keystate[SDL_GetScancodeFromKey(key)];
 }
 
-SDL_Surface * s_platform;
-SDL_Surface * s_platformpathbuttons;
-SDL_Surface * s_maphazardbuttons;
+gfxSprite s_platform;
+gfxSprite s_platformpathbuttons;
+gfxSprite s_maphazardbuttons;
 
 int save_as();
 int find();
@@ -292,7 +288,7 @@ int newmap();
 void save_map(const std::string &file);
 void insert_platforms_into_map();
 void CalculatePlatformDims(short iPlatform, short * ix, short * iy, short * iw, short * ih);
-void LoadBackgroundPage(SDL_Surface ** sBackgrounds, short iPage);
+void LoadBackgroundPage(std::array<gfxSprite, 16>& sBackgrounds, short iPage);
 
 int editor_edit();
 int editor_warp();
@@ -331,7 +327,7 @@ bool view_only_layer = false;
 bool viewwarps = true;
 bool ignoreclick = false;
 
-char findstring[FILEBUFSIZE] = "";
+std::string findstring;
 
 short g_iNumPlatforms = 0;
 MapPlatform g_Platforms[MAX_PLATFORMS];
@@ -370,6 +366,8 @@ bool g_fFullScreen = false;
 void gameloop_frame();
 #endif
 
+void inner_main();
+
 //main main main
 int main(int argc, char *argv[])
 {
@@ -390,14 +388,32 @@ int main(int argc, char *argv[])
         RootDataDirectory = cmd.data_root;
     }
 
-	ensureSettingsDir();
+    try {
+        inner_main();
+    }
+    catch (const char* what) {
+        gfx_show_catched_error(what);
+        return 1;
+    }
+    catch (const std::string& ex) {
+        gfx_show_catched_error(ex);
+        return 1;
+    }
+    catch (const std::exception& ex) {
+        gfx_show_catched_error(ex.what());
+        return 1;
+    }
+    catch (...) {
+        gfx_show_catched_error({});
+        return 1;
+    }
 
-	rm = new CResourceManager();
-	g_map = new CMap();
-	g_tilesetmanager = new CTilesetManager();
-	filterslist = new FiltersList();
-	maplist = new MapList(false);
-    backgroundlist = new BackgroundList();
+    return 0;
+}
+
+void inner_main()
+{
+	ensureSettingsDir();
 
     /* This must occur before any data files are loaded */
     Initialize_Paths();
@@ -414,13 +430,19 @@ int main(int argc, char *argv[])
         BinaryFile editor_settings(options_path, "rb");
         if (editor_settings.is_open()) {
             g_fFullScreen = editor_settings.read_bool();
-            editor_settings.read_string_long(findstring, FILEBUFSIZE);
+            findstring = editor_settings.read_string_long(FILEBUFSIZE);
         }
     }
 
 	gfx_init(640,480, g_fFullScreen);
 	blitdest = screen;
-        g_tilesetmanager->init(convertPath("gfx/Classic/tilesets").c_str());
+
+        rm = new CResourceManager();
+        g_tilesetmanager = new CTilesetManager(convertPath("gfx/Classic/tilesets"));
+        g_map = new CMap();
+        filterslist = new FiltersList();
+        maplist = new MapList(false);
+        backgroundlist = new BackgroundList();
 
 	//Add all of the maps that are world only so we can edit them
 	maplist->addWorldMaps();
@@ -430,79 +452,77 @@ int main(int argc, char *argv[])
 
 	printf("\n---------------- loading graphics ----------------\n");
 
-	rm->spr_tiletypes = gfxSprite(convertPath("gfx/leveleditor/leveleditor_tile_types.png"));
-	rm->spr_transparenttiles = gfxSprite(convertPath("gfx/leveleditor/leveleditor_transparent_tiles.png"), colors::MAGENTA, 160);
+	rm->spr_tiletypes = ImageLoader(convertPath("gfx/leveleditor/leveleditor_tile_types.png")).withoutColorKey().create();
+	rm->spr_transparenttiles = ImageLoader(convertPath("gfx/leveleditor/leveleditor_transparent_tiles.png")).withAlpha(160).create();
 
-	rm->spr_backgroundlevel = gfxSprite(convertPath("gfx/leveleditor/leveleditor_background_levels.png"), colors::MAGENTA);
-	rm->spr_tilesetlevel = gfxSprite(convertPath("gfx/leveleditor/leveleditor_tileset_levels.png"), colors::MAGENTA);
+	rm->spr_backgroundlevel = ImageLoader(convertPath("gfx/leveleditor/leveleditor_background_levels.png")).create();
+	rm->spr_tilesetlevel = ImageLoader(convertPath("gfx/leveleditor/leveleditor_tileset_levels.png")).create();
 
-        rm->spr_eyecandy = gfxSprite(convertPath("gfx/leveleditor/leveleditor_eyecandy.png"), colors::MAGENTA);
+        rm->spr_eyecandy = ImageLoader(convertPath("gfx/leveleditor/leveleditor_eyecandy.png")).create();
 
-        s_platform = IMG_Load(convertPath("gfx/leveleditor/leveleditor_platform.png").c_str());
-        s_platformpathbuttons = IMG_Load(convertPath("gfx/leveleditor/leveleditor_pathtype_buttons.png").c_str());
-        s_maphazardbuttons = IMG_Load(convertPath("gfx/leveleditor/leveleditor_maphazard_buttons.png").c_str());
+        s_platform = ImageLoader(convertPath("gfx/leveleditor/leveleditor_platform.png")).create();
+        s_platformpathbuttons = ImageLoader(convertPath("gfx/leveleditor/leveleditor_pathtype_buttons.png")).create();
+        s_maphazardbuttons = ImageLoader(convertPath("gfx/leveleditor/leveleditor_maphazard_buttons.png")).create();
 
-	rm->spr_warps[0] = gfxSprite(convertPath("gfx/leveleditor/leveleditor_warp.png"), colors::MAGENTA);
-	rm->spr_warps[1] = gfxSprite(convertPath("gfx/leveleditor/leveleditor_warp_preview.png"), colors::MAGENTA);
-	rm->spr_warps[2] = gfxSprite(convertPath("gfx/leveleditor/leveleditor_warp_thumbnail.png"), colors::MAGENTA);
+	rm->spr_warps[0] = ImageLoader(convertPath("gfx/leveleditor/leveleditor_warp.png")).create();
+	rm->spr_warps[1] = ImageLoader(convertPath("gfx/leveleditor/leveleditor_warp_preview.png")).create();
+	rm->spr_warps[2] = ImageLoader(convertPath("gfx/leveleditor/leveleditor_warp_thumbnail.png")).create();
 
-	rm->spr_platformpath = gfxSprite(convertPath("gfx/leveleditor/leveleditor_platform_path.png"), colors::MAGENTA, 128);
+	rm->spr_platformpath = ImageLoader(convertPath("gfx/leveleditor/leveleditor_platform_path.png")).withAlpha(128).create();
 
-	rm->spr_selectedtile = gfxSprite(convertPath("gfx/leveleditor/leveleditor_selectedtile.png"), colors::BLACK, 128);
-	rm->spr_nospawntile = gfxSprite(convertPath("gfx/leveleditor/leveleditor_nospawntile.png"), colors::BLACK, 128);
-	rm->spr_noitemspawntile = gfxSprite(convertPath("gfx/leveleditor/leveleditor_noitemspawntile.png"), colors::BLACK, 128);
-	rm->spr_platformstarttile = gfxSprite(convertPath("gfx/leveleditor/leveleditor_platformstarttile.png"), colors::BLACK, 64);
-        rm->spr_platformstarttile.setWrap();
-	rm->spr_platformendtile = gfxSprite(convertPath("gfx/leveleditor/leveleditor_selectedtile.png"), colors::BLACK, 64);
-        rm->spr_platformendtile.setWrap();
+	rm->spr_selectedtile = ImageLoader(convertPath("gfx/leveleditor/leveleditor_selectedtile.png")).withColorKey(colors::BLACK).withAlpha(128).create();
+	rm->spr_nospawntile = ImageLoader(convertPath("gfx/leveleditor/leveleditor_nospawntile.png")).withColorKey(colors::BLACK).withAlpha(128).create();
+	rm->spr_noitemspawntile = ImageLoader(convertPath("gfx/leveleditor/leveleditor_noitemspawntile.png")).withColorKey(colors::BLACK).withAlpha(128).create();
+	rm->spr_platformstarttile = ImageLoader(convertPath("gfx/leveleditor/leveleditor_platformstarttile.png")).withColorKey(colors::BLACK).withAlpha(64).withWrapping().create();
+	rm->spr_platformendtile = ImageLoader(convertPath("gfx/leveleditor/leveleditor_selectedtile.png")).withColorKey(colors::BLACK).withAlpha(64).withWrapping().create();
 
-	rm->spr_mapitems[0] = gfxSprite(convertPath("gfx/leveleditor/leveleditor_mapitems.png"), colors::MAGENTA);
-	rm->spr_mapitems[1] = gfxSprite(convertPath("gfx/leveleditor/leveleditor_mapitems_preview.png"), colors::MAGENTA);
-	rm->spr_mapitems[2] = gfxSprite(convertPath("gfx/leveleditor/leveleditor_mapitems_thumbnail.png"), colors::MAGENTA);
+	rm->spr_mapitems[0] = ImageLoader(convertPath("gfx/leveleditor/leveleditor_mapitems.png")).create();
+	rm->spr_mapitems[1] = ImageLoader(convertPath("gfx/leveleditor/leveleditor_mapitems_preview.png")).create();
+	rm->spr_mapitems[2] = ImageLoader(convertPath("gfx/leveleditor/leveleditor_mapitems_thumbnail.png")).create();
 
-	rm->spr_dialog = gfxSprite(convertPath("gfx/leveleditor/leveleditor_dialog.png"), colors::MAGENTA, 255);
-	rm->menu_shade = gfxSprite(convertPath("gfx/leveleditor/leveleditor_shade.png"), colors::MAGENTA, 128);
+	rm->spr_dialog = ImageLoader(convertPath("gfx/leveleditor/leveleditor_dialog.png")).withAlpha(255).create();
+	rm->menu_shade = ImageLoader(convertPath("gfx/leveleditor/leveleditor_shade.png")).withAlpha(128).create();
 
-	rm->spr_tileanimation[0] = gfxSprite(convertPath("gfx/packs/Classic/tilesets/tile_animation.png"), colors::MAGENTA);
-	rm->spr_tileanimation[1] = gfxSprite(convertPath("gfx/packs/Classic/tilesets/tile_animation_preview.png"), colors::MAGENTA);
-	rm->spr_tileanimation[2] = gfxSprite(convertPath("gfx/packs/Classic/tilesets/tile_animation_thumbnail.png"), colors::MAGENTA);
+	rm->spr_tileanimation[0] = ImageLoader(convertPath("gfx/packs/Classic/tilesets/tile_animation.png")).create();
+	rm->spr_tileanimation[1] = ImageLoader(convertPath("gfx/packs/Classic/tilesets/tile_animation_preview.png")).create();
+	rm->spr_tileanimation[2] = ImageLoader(convertPath("gfx/packs/Classic/tilesets/tile_animation_thumbnail.png")).create();
 
-	rm->spr_blocks[0] = gfxSprite(convertPath("gfx/packs/Classic/tilesets/blocks.png"), colors::MAGENTA);
-	rm->spr_blocks[1] = gfxSprite(convertPath("gfx/packs/Classic/tilesets/blocks_preview.png"), colors::MAGENTA);
-	rm->spr_blocks[2] = gfxSprite(convertPath("gfx/packs/Classic/tilesets/blocks_thumbnail.png"), colors::MAGENTA);
+	rm->spr_blocks[0] = ImageLoader(convertPath("gfx/packs/Classic/tilesets/blocks.png")).create();
+	rm->spr_blocks[1] = ImageLoader(convertPath("gfx/packs/Classic/tilesets/blocks_preview.png")).create();
+	rm->spr_blocks[2] = ImageLoader(convertPath("gfx/packs/Classic/tilesets/blocks_thumbnail.png")).create();
 
-	rm->spr_unknowntile[0] = gfxSprite(convertPath("gfx/packs/Classic/tilesets/unknown_tile.png"), colors::MAGENTA);
-	rm->spr_unknowntile[1] = gfxSprite(convertPath("gfx/packs/Classic/tilesets/unknown_tile_preview.png"), colors::MAGENTA);
-	rm->spr_unknowntile[2] = gfxSprite(convertPath("gfx/packs/Classic/tilesets/unknown_tile_thumbnail.png"), colors::MAGENTA);
+	rm->spr_unknowntile[0] = ImageLoader(convertPath("gfx/packs/Classic/tilesets/unknown_tile.png")).create();
+	rm->spr_unknowntile[1] = ImageLoader(convertPath("gfx/packs/Classic/tilesets/unknown_tile_preview.png")).create();
+	rm->spr_unknowntile[2] = ImageLoader(convertPath("gfx/packs/Classic/tilesets/unknown_tile_thumbnail.png")).create();
 
-	rm->spr_powerups = gfxSprite(convertPath("gfx/packs/Classic/powerups/large.png"), colors::MAGENTA);
-	rm->spr_powerupselector = gfxSprite(convertPath("gfx/leveleditor/leveleditor_powerup_selector.png"), colors::MAGENTA, 128);
-	rm->spr_hidden_marker = gfxSprite(convertPath("gfx/leveleditor/leveleditor_hidden_marker.png"), colors::MAGENTA);
+	rm->spr_powerups = ImageLoader(convertPath("gfx/packs/Classic/powerups/large.png")).create();
+	rm->spr_powerupselector = ImageLoader(convertPath("gfx/leveleditor/leveleditor_powerup_selector.png")).withAlpha(128).create();
+	rm->spr_hidden_marker = ImageLoader(convertPath("gfx/leveleditor/leveleditor_hidden_marker.png")).create();
 
-	rm->spr_flagbases = gfxSprite(convertPath("gfx/packs/Classic/modeobjects/flagbases.png"), colors::MAGENTA);
-	rm->spr_racegoals = gfxSprite(convertPath("gfx/packs/Classic/modeobjects/racegoal.png"), colors::MAGENTA);
+	rm->spr_flagbases = ImageLoader(convertPath("gfx/packs/Classic/modeobjects/flagbases.png")).create();
+	rm->spr_racegoals = ImageLoader(convertPath("gfx/packs/Classic/modeobjects/racegoal.png")).create();
 
-	rm->spr_hazard_fireball[0] = gfxSprite(convertPath("gfx/packs/Classic/hazards/fireball.png"), colors::MAGENTA);
-	rm->spr_hazard_fireball[1] = gfxSprite(convertPath("gfx/packs/Classic/hazards/fireball_preview.png"), colors::MAGENTA);
-	rm->spr_hazard_fireball[2] = gfxSprite(convertPath("gfx/packs/Classic/hazards/fireball_thumbnail.png"), colors::MAGENTA);
+	rm->spr_hazard_fireball[0] = ImageLoader(convertPath("gfx/packs/Classic/hazards/fireball.png")).create();
+	rm->spr_hazard_fireball[1] = ImageLoader(convertPath("gfx/packs/Classic/hazards/fireball_preview.png")).create();
+	rm->spr_hazard_fireball[2] = ImageLoader(convertPath("gfx/packs/Classic/hazards/fireball_thumbnail.png")).create();
 
-	rm->spr_hazard_rotodisc[0] = gfxSprite(convertPath("gfx/packs/Classic/hazards/rotodisc.png"), colors::MAGENTA);
-	rm->spr_hazard_rotodisc[1] = gfxSprite(convertPath("gfx/packs/Classic/hazards/rotodisc_preview.png"), colors::MAGENTA);
-	rm->spr_hazard_rotodisc[2] = gfxSprite(convertPath("gfx/packs/Classic/hazards/rotodisc_thumbnail.png"), colors::MAGENTA);
+	rm->spr_hazard_rotodisc[0] = ImageLoader(convertPath("gfx/packs/Classic/hazards/rotodisc.png")).create();
+	rm->spr_hazard_rotodisc[1] = ImageLoader(convertPath("gfx/packs/Classic/hazards/rotodisc_preview.png")).create();
+	rm->spr_hazard_rotodisc[2] = ImageLoader(convertPath("gfx/packs/Classic/hazards/rotodisc_thumbnail.png")).create();
 
-	rm->spr_hazard_bulletbill[0] = gfxSprite(convertPath("gfx/packs/Classic/hazards/bulletbill.png"), colors::MAGENTA);
-	rm->spr_hazard_bulletbill[1] = gfxSprite(convertPath("gfx/packs/Classic/hazards/bulletbill_preview.png"), colors::MAGENTA);
-	rm->spr_hazard_bulletbill[2] = gfxSprite(convertPath("gfx/packs/Classic/hazards/bulletbill_thumbnail.png"), colors::MAGENTA);
+	rm->spr_hazard_bulletbill[0] = ImageLoader(convertPath("gfx/packs/Classic/hazards/bulletbill.png")).create();
+	rm->spr_hazard_bulletbill[1] = ImageLoader(convertPath("gfx/packs/Classic/hazards/bulletbill_preview.png")).create();
+	rm->spr_hazard_bulletbill[2] = ImageLoader(convertPath("gfx/packs/Classic/hazards/bulletbill_thumbnail.png")).create();
 
-	rm->spr_hazard_flame[0] = gfxSprite(convertPath("gfx/packs/Classic/hazards/flame.png"), colors::MAGENTA);
-	rm->spr_hazard_flame[1] = gfxSprite(convertPath("gfx/packs/Classic/hazards/flame_preview.png"), colors::MAGENTA);
-	rm->spr_hazard_flame[2] = gfxSprite(convertPath("gfx/packs/Classic/hazards/flame_thumbnail.png"), colors::MAGENTA);
+	rm->spr_hazard_flame[0] = ImageLoader(convertPath("gfx/packs/Classic/hazards/flame.png")).create();
+	rm->spr_hazard_flame[1] = ImageLoader(convertPath("gfx/packs/Classic/hazards/flame_preview.png")).create();
+	rm->spr_hazard_flame[2] = ImageLoader(convertPath("gfx/packs/Classic/hazards/flame_thumbnail.png")).create();
 
-	rm->spr_hazard_pirhanaplant[0] = gfxSprite(convertPath("gfx/packs/Classic/hazards/pirhanaplant.png"), colors::MAGENTA);
-	rm->spr_hazard_pirhanaplant[1] = gfxSprite(convertPath("gfx/packs/Classic/hazards/pirhanaplant_preview.png"), colors::MAGENTA);
-	rm->spr_hazard_pirhanaplant[2] = gfxSprite(convertPath("gfx/packs/Classic/hazards/pirhanaplant_thumbnail.png"), colors::MAGENTA);
+	rm->spr_hazard_pirhanaplant[0] = ImageLoader(convertPath("gfx/packs/Classic/hazards/pirhanaplant.png")).create();
+	rm->spr_hazard_pirhanaplant[1] = ImageLoader(convertPath("gfx/packs/Classic/hazards/pirhanaplant_preview.png")).create();
+	rm->spr_hazard_pirhanaplant[2] = ImageLoader(convertPath("gfx/packs/Classic/hazards/pirhanaplant_thumbnail.png")).create();
 
-	rm->spr_number_icons = gfxSprite(convertPath("gfx/packs/Classic/awards/killsinrownumbers.png"), colors::MAGENTA);
+	rm->spr_number_icons = ImageLoader(convertPath("gfx/packs/Classic/awards/killsinrownumbers.png")).create();
 
     for (short i = 0; i < 3; i++) {
 		rm->spr_hazard_fireball[i].setWrap(640 >> i);
@@ -510,20 +530,9 @@ int main(int argc, char *argv[])
 		rm->spr_hazard_flame[i].setWrap(640 >> i);
 		rm->spr_hazard_pirhanaplant[i].setWrap(640 >> i);
 	}
-    if (SDL_SetColorKey(s_platform, SDL_TRUE, SDL_MapRGB(s_platform->format, 255, 0, 255)) < 0) {
-        printf("\n ERROR: Couldn't set ColorKey + RLE: %s\n", SDL_GetError());
-    }
 
-    if (SDL_SetColorKey(s_platformpathbuttons, SDL_TRUE, SDL_MapRGB(s_platformpathbuttons->format, 255, 0, 255)) < 0) {
-        printf("\n ERROR: Couldn't set ColorKey + RLE: %s\n", SDL_GetError());
-    }
-
-    if (SDL_SetColorKey(s_maphazardbuttons, SDL_TRUE, SDL_MapRGB(s_maphazardbuttons->format, 255, 0, 255)) < 0) {
-        printf("\n ERROR: Couldn't set ColorKey + RLE: %s\n", SDL_GetError());
-    }
-
-	rm->menu_font_small.init(convertPath("gfx/packs/Classic/fonts/font_small.png"));
-	rm->menu_font_large.init(convertPath("gfx/packs/Classic/fonts/font_large.png"));
+	rm->menu_font_small = gfxFont(convertPath("gfx/packs/Classic/fonts/font_small.png"));
+	rm->menu_font_large = gfxFont(convertPath("gfx/packs/Classic/fonts/font_large.png"));
 
 	printf("\n---------------- load map ----------------\n");
 
@@ -556,7 +565,7 @@ int main(int argc, char *argv[])
 
 	maplist->find(findstring);
 	loadcurrentmap();
-	findstring[0] = 0;  //clear out the find string so that pressing "f" will give you the find dialog
+        findstring.clear();  //clear out the find string so that pressing "f" will give you the find dialog
 
 	printf("\n---------------- ready, steady, go! ----------------\n");
 
@@ -689,7 +698,6 @@ void gameloop_frame()
     g_tilesetmanager->saveTilesets();
 
 	printf("\n---------------- shutdown ----------------\n");
-	return 0;
 #endif
 }
 
@@ -945,8 +953,8 @@ int editor_edit()
                     if (key == SDLK_g) {
                         backgroundlist->next();
 
-                        rm->spr_background = gfxSprite(backgroundlist->currentPath());
-                        g_map->szBackgroundFile = getFilenameFromPath(backgroundlist->currentPath().string());
+                        rm->spr_background = ImageLoader(backgroundlist->currentPath()).withoutColorKey().create();
+                        g_map->szBackgroundFile = backgroundlist->currentPath().filename().string();
 
                         if (!CheckKey(keystate, SDLK_LSHIFT) && !CheckKey(keystate, SDLK_RSHIFT)) {
 								//Set music to background default
@@ -974,7 +982,7 @@ int editor_edit()
 						}
 
                     if (key == SDLK_f ) {
-							if (CheckKey(keystate, SDLK_LSHIFT) || CheckKey(keystate, SDLK_RSHIFT) || findstring[0] == '\0')
+                                                    if (CheckKey(keystate, SDLK_LSHIFT) || CheckKey(keystate, SDLK_RSHIFT) || findstring.empty())
 								return FIND;
 
 							findcurrentstring();
@@ -1627,7 +1635,7 @@ void SetNoSpawn(short nospawnmode, short col, short row, bool value)
 
 void drawlayer(int layer, bool fUseCopied, short iBlockSize)
 {
-	short iTilesetIndex = iBlockSize == TILESIZE ? 0 : iBlockSize == PREVIEWTILESIZE ? 1 : 2;
+	const DrawSize drawsize = iBlockSize == TILESIZE ? DrawSize::Ingame : iBlockSize == PREVIEWTILESIZE ? DrawSize::Preview : DrawSize::Thumbnail;
 
 	//draw left to right full vertical
     for (short i = 0; i < MAPWIDTH; i++) {
@@ -1647,8 +1655,7 @@ void drawlayer(int layer, bool fUseCopied, short iBlockSize)
 				continue;
 
             if (tile->iID >= 0) {
-				g_tilesetmanager->Draw(screen, tile->iID, iTilesetIndex, tile->iCol, tile->iRow, i, j);
-				//SDL_BlitSurface(g_tilesetmanager->GetTileset(tile->iID)->GetSurface(iTilesetIndex), g_tilesetmanager->GetRect(iTilesetIndex, tile->iCol, tile->iRow), screen, &bltrect);
+				g_tilesetmanager->Draw(screen, tile->iID, drawsize, tile->iCol, tile->iRow, i, j);
             } else if (tile->iID == TILESETANIMATED) {
 				short iSrcCol = tile->iCol << 2;
 				short iSrcRow = tile->iRow;
@@ -1658,9 +1665,9 @@ void drawlayer(int layer, bool fUseCopied, short iBlockSize)
 					iSrcRow = 0;
 				}
 
-                SDL_BlitSurface(rm->spr_tileanimation[iTilesetIndex].getSurface(), g_tilesetmanager->rect(iTilesetIndex, iSrcCol, iSrcRow), screen, g_tilesetmanager->rect(iTilesetIndex, i, j));
+                rm->spr_tileanimation[static_cast<size_t>(drawsize)].draw(CTilesetManager::rect(drawsize, iSrcCol, iSrcRow), screen, CTilesetManager::rect(drawsize, i, j));
             } else if (tile->iID == TILESETUNKNOWN) {
-                SDL_BlitSurface(rm->spr_unknowntile[iTilesetIndex].getSurface(), g_tilesetmanager->rect(iTilesetIndex, 0, 0), screen, g_tilesetmanager->rect(iTilesetIndex, i, j));
+                rm->spr_unknowntile[static_cast<size_t>(drawsize)].draw(CTilesetManager::rect(drawsize, 0, 0), screen, CTilesetManager::rect(drawsize, i, j));
 			}
 		}
 	}
@@ -1681,10 +1688,7 @@ void drawmap(bool fScreenshot, short iBlockSize, bool fWithPlatforms)
 		dstrect.w = iBlockSize * 20;
 		dstrect.h = iBlockSize * 15;
 
-        if (SDL_BlitScaled(rm->spr_background.getSurface(), &srcrect, blitdest, &dstrect) < 0) {
-			fprintf(stderr, "SDL_SCALEBLIT error: %s\n", SDL_GetError());
-			return;
-		}
+                rm->spr_background.drawStretch(srcrect, blitdest, dstrect);
     } else {
 		rm->spr_background.draw(0,0);
 	}
@@ -1709,7 +1713,7 @@ void drawmap(bool fScreenshot, short iBlockSize, bool fWithPlatforms)
 		g_map->drawPlatforms(0);
 
     if ((viewblocks && !view_only_layer) || fScreenshot) {
-		short iTilesizeIndex = iBlockSize == 32 ? 0 : iBlockSize == 16 ? 1 : 2;
+		const DrawSize drawsize = iBlockSize == 32 ? DrawSize::Ingame : iBlockSize == 16 ? DrawSize::Preview : DrawSize::Thumbnail;
 
 		SDL_Rect rSrc = {0, 0, iBlockSize, iBlockSize};
 
@@ -1748,7 +1752,7 @@ void drawmap(bool fScreenshot, short iBlockSize, bool fWithPlatforms)
 						rSrc.y = iBlockSize << 1;
 					}
 
-                    SDL_BlitSurface(rm->spr_blocks[iTilesizeIndex].getSurface(), &rSrc, screen, g_tilesetmanager->rect(iTilesizeIndex, i, j));
+                    rm->spr_blocks[static_cast<size_t>(drawsize)].draw(rSrc, screen, CTilesetManager::rect(drawsize, i, j));
 				}
 			}
 		}
@@ -1817,7 +1821,7 @@ void drawmap(bool fScreenshot, short iBlockSize, bool fWithPlatforms)
 					SDL_Rect rSrc = {warp->connection * iBlockSize, warp->direction * iBlockSize, iBlockSize, iBlockSize};
 					SDL_Rect rDst = {i * iBlockSize, j * iBlockSize, iBlockSize, iBlockSize};
 
-					SDL_BlitSurface(rm->spr_warps[iBlockSize == TILESIZE ? 0 : iBlockSize == PREVIEWTILESIZE ? 1 : 2].getSurface(), &rSrc, screen, &rDst);
+					rm->spr_warps[iBlockSize == TILESIZE ? 0 : iBlockSize == PREVIEWTILESIZE ? 1 : 2].draw(rSrc, screen, rDst);
 				}
 			}
 		}
@@ -1832,7 +1836,7 @@ void drawmap(bool fScreenshot, short iBlockSize, bool fWithPlatforms)
 		SDL_Rect rSrc = {g_map->warpexits[k].connection * TILESIZE, g_map->warpexits[k].direction * TILESIZE, TILESIZE, TILESIZE};
 		SDL_Rect rDst = {g_map->warpexits[k].x, g_map->warpexits[k].y, TILESIZE, TILESIZE};
 
-		SDL_BlitSurface(rm->spr_warps[0].getSurface(), &rSrc, screen, &rDst);
+		rm->spr_warps[0].draw(rSrc, screen, rDst);
 	}
 	*/
 }
@@ -1882,7 +1886,7 @@ int editor_warp()
         r.w = 640;
         r.h = 480;
 
-		SDL_BlitSurface(rm->spr_warps[0].getSurface(), NULL, screen, &r);
+		rm->spr_warps[0].draw(screen, r);
 		rm->menu_font_small.drawRightJustified(640, 0, maplist->currentFilename().c_str());
 
 		DrawMessage();
@@ -2271,7 +2275,7 @@ void editor_platforms_draw_background_section(const SDL_Rect& src_area, const SD
 
             SDL_Rect src { src_area.x, src_area.y, w, h };
             SDL_Rect dst { dst_area.x + offset_x, dst_area.y + offset_y, w, h };
-            SDL_BlitSurface(s_platform, &src, screen, &dst);
+            s_platform.draw(src, screen, dst);
 
             offset_x += w;
         }
@@ -2610,11 +2614,7 @@ int editor_platforms()
                     } else if (PLATFORM_EDIT_STATE_TILETYPE == iPlatformEditState) {
 							g_Platforms[iEditPlatform].types[ix * MAPHEIGHT + iy] = TileType::NonSolid;
                     } else if (PLATFORM_EDIT_STATE_PATH == iPlatformEditState) {
-                    #if defined(USE_SDL2) || defined(__EMSCRIPTEN__)
                         const Uint8 * keystate = SDL_GetKeyboardState(NULL);
-                    #else
-                        Uint8 * keystate = SDL_GetKeyState(NULL);
-                    #endif
                         if (g_Platforms[iEditPlatform].iPathType == PlatformPathType::Straight) {
 								UpdatePlatformPathEnd(iEditPlatform, event.button.x, event.button.y, CheckKey(keystate, SDLK_LSHIFT) || CheckKey(keystate, SDLK_RSHIFT));
                         } else if (g_Platforms[iEditPlatform].iPathType == PlatformPathType::StraightContinuous || g_Platforms[iEditPlatform].iPathType == PlatformPathType::Ellipse) {
@@ -2712,10 +2712,10 @@ int editor_platforms()
 			rm->menu_font_small.drawRightJustified(640, 0, maplist->currentFilename().c_str());
 
 			for (int iPlatform = 0; iPlatform < g_iNumPlatforms; iPlatform++)
-				SDL_BlitSurface(s_platform, &g_Platforms[iPlatform].rIcon[0], screen, &g_Platforms[iPlatform].rIcon[1]);
+				s_platform.draw(g_Platforms[iPlatform].rIcon[0], screen, g_Platforms[iPlatform].rIcon[1]);
 
 			if (g_iNumPlatforms < MAX_PLATFORMS && PLATFORM_EDIT_STATE_SELECT == iPlatformEditState)
-				SDL_BlitSurface(s_platform, &rNewButton[0], screen, &rNewButton[1]);
+				s_platform.draw(rNewButton[0], screen, rNewButton[1]);
 
             if (PLATFORM_EDIT_STATE_MOVE == iPlatformEditState) {
                 if (iPlatformSwitchState == 0) {
@@ -2733,8 +2733,8 @@ int editor_platforms()
         } else if (PLATFORM_EDIT_STATE_PATH_TYPE == iPlatformEditState || PLATFORM_EDIT_STATE_CHANGE_PATH_TYPE == iPlatformEditState) {
 			//Draw path options
             for (short iType = 0; iType < 3; iType++) {
-				SDL_BlitSurface(s_platformpathbuttons, &rTypeButton[iType][0], screen, &rTypeButton[iType][1]);
-				SDL_BlitSurface(s_platformpathbuttons, &rTypeButton[iType][2], screen, &rTypeButton[iType][3]);
+				s_platformpathbuttons.draw(rTypeButton[iType][0], screen, rTypeButton[iType][1]);
+				s_platformpathbuttons.draw(rTypeButton[iType][2], screen, rTypeButton[iType][3]);
 
 				rm->menu_font_large.draw(rTypeButton[iType][1].x + 36, rTypeButton[iType][1].y + 6, szPathNames[iType]);
 			}
@@ -2750,10 +2750,10 @@ int editor_platforms()
 				short iVelMarkerX = 198 + (g_Platforms[iEditPlatform].iVelocity + 10) * 12;
 
 				SDL_Rect rVel[2] = {{0, 400, 244, 17},{198, 10, 244, 17}};
-				SDL_BlitSurface(s_platform, &rVel[0], screen, &rVel[1]);
+				s_platform.draw(rVel[0], screen, rVel[1]);
 
 				SDL_Rect rMarker[2] = {{244,400,8,18},{iVelMarkerX,10,8,18}};
-				SDL_BlitSurface(s_platform, &rMarker[0], screen, &rMarker[1]);
+				s_platform.draw(rMarker[0], screen, rMarker[1]);
 
 				rm->menu_font_small.drawRightJustified(198, 10, "Counter");
 				rm->menu_font_small.draw(442, 10, "Clockwise");
@@ -2761,10 +2761,10 @@ int editor_platforms()
 				short iVelMarkerX = 220 + (g_Platforms[iEditPlatform].iVelocity - 1) * 12;
 
 				SDL_Rect rVel[2] = {{12, 384, 172, 13},{234, 10, 172, 13}};
-				SDL_BlitSurface(s_platform, &rVel[0], screen, &rVel[1]);
+				s_platform.draw(rVel[0], screen, rVel[1]);
 
 				SDL_Rect rMarker[2] = {{184, 384, 8, 16},{iVelMarkerX, 8, 8, 16}};
-				SDL_BlitSurface(s_platform, &rMarker[0], screen, &rMarker[1]);
+				s_platform.draw(rMarker[0], screen, rMarker[1]);
 
 				rm->menu_font_small.drawRightJustified(234, 10, "Slow");
 				rm->menu_font_small.draw(406, 10, "Fast");
@@ -2775,19 +2775,19 @@ int editor_platforms()
         } else if (PLATFORM_EDIT_STATE_PATH == iPlatformEditState) {
             if (g_Platforms[iEditPlatform].iPathType == PlatformPathType::Straight) {
 				MapPlatform * platform = &g_Platforms[iEditPlatform];
-				DrawPlatform(platform->iPathType, g_map->platforms[iEditPlatform]->iTileData, platform->iStartX, platform->iStartY, platform->iEndX, platform->iEndY, platform->fAngle, platform->fRadiusX, platform->fRadiusY, 0, iPlatformWidth, iPlatformHeight, false, true);
+				DrawPlatform(platform->iPathType, g_map->platforms[iEditPlatform]->iTileData, platform->iStartX, platform->iStartY, platform->iEndX, platform->iEndY, platform->fAngle, platform->fRadiusX, platform->fRadiusY, 0, iPlatformWidth, iPlatformHeight, false, true, blitdest);
 
 				rm->menu_font_small.draw(0, 480 - (rm->menu_font_small.getHeight() << 1), "Edit Path");
 				rm->menu_font_small.draw(0, 480 - rm->menu_font_small.getHeight(), "[esc] Exit  [LMB] Set Start Point  [RMB] Set End Point [t] Path Type");
             } else if (g_Platforms[iEditPlatform].iPathType == PlatformPathType::StraightContinuous) {
 				MapPlatform * platform = &g_Platforms[iEditPlatform];
-				DrawPlatform(platform->iPathType, g_map->platforms[iEditPlatform]->iTileData, platform->iStartX, platform->iStartY, platform->iEndX, platform->iEndY, platform->fAngle, platform->fRadiusX, platform->fRadiusY, 0, iPlatformWidth, iPlatformHeight, false, true);
+				DrawPlatform(platform->iPathType, g_map->platforms[iEditPlatform]->iTileData, platform->iStartX, platform->iStartY, platform->iEndX, platform->iEndY, platform->fAngle, platform->fRadiusX, platform->fRadiusY, 0, iPlatformWidth, iPlatformHeight, false, true, blitdest);
 
 				rm->menu_font_small.draw(0, 480 - (rm->menu_font_small.getHeight() << 1), "Edit Path: [esc] Exit  [LMB] Set Start Point  [RMB] Set Angle");
 				rm->menu_font_small.draw(0, 480 - rm->menu_font_small.getHeight(), "[SHIFT + LMB] Location Snap [SHIFT + RMB] Angle Snap [t] Path Type");
             } else if (g_Platforms[iEditPlatform].iPathType == PlatformPathType::Ellipse) {
 				MapPlatform * platform = &g_Platforms[iEditPlatform];
-				DrawPlatform(platform->iPathType, g_map->platforms[iEditPlatform]->iTileData, platform->iStartX, platform->iStartY, platform->iEndX, platform->iEndY, platform->fAngle, platform->fRadiusX, platform->fRadiusY, 0, iPlatformWidth, iPlatformHeight, false, true);
+				DrawPlatform(platform->iPathType, g_map->platforms[iEditPlatform]->iTileData, platform->iStartX, platform->iStartY, platform->iEndX, platform->iEndY, platform->fAngle, platform->fRadiusX, platform->fRadiusY, 0, iPlatformWidth, iPlatformHeight, false, true, blitdest);
 
 				rm->menu_font_small.draw(0, 480 - rm->menu_font_small.getHeight() * 4, "Edit Path: [esc] Exit  [LMB] Set Center [SHIFT + LMB] Center Snap");
 				rm->menu_font_small.draw(0, 480 - rm->menu_font_small.getHeight() * 3, "[X + LMB] Set X Radius [SHIFT + X + LMB] X Radius Snap");
@@ -2811,7 +2811,7 @@ void DisplayPlatformPreview(short iPlatformId, short iMouseX, short iMouseY)
 {
 	SDL_Rect srcRect = {0, 0, 160, 120};
 	SDL_Rect dstRect = {iMouseX, iMouseY, 160, 120};
-	SDL_BlitSurface(g_Platforms[iPlatformId].preview, &srcRect, screen, &dstRect);
+	g_Platforms[iPlatformId].preview.draw(srcRect, screen, dstRect);
 }
 
 void SwitchPlatforms(short iPlatformId1, short iPlatformId2)
@@ -2946,8 +2946,8 @@ void draw_platform(short iPlatform, bool fDrawTileTypes)
 			TilesetTile * tile = &g_Platforms[iPlatform].tiles[iCol * MAPHEIGHT + iRow];
 
             if (tile->iID >= 0) {
-				g_tilesetmanager->Draw(screen, tile->iID, 0, tile->iCol, tile->iRow, iCol, iRow);
-				//SDL_BlitSurface(g_tilesetmanager->GetTileset(tile->iID)->GetSurface(0), g_tilesetmanager->GetRect(0, tile->iCol, tile->iRow), screen, &bltrect);
+				g_tilesetmanager->Draw(screen, tile->iID, DrawSize::Ingame, tile->iCol, tile->iRow, iCol, iRow);
+				//g_tilesetmanager->tileset(tile->iID)->draw(CTilesetManager::rect(0, tile->iCol, tile->iRow), screen, bltrect);
             } else if (tile->iID == TILESETANIMATED) {
 				short iSrcCol = tile->iCol << 2;
 				short iSrcRow = tile->iRow;
@@ -2957,9 +2957,9 @@ void draw_platform(short iPlatform, bool fDrawTileTypes)
 					iSrcRow = 0;
 				}
 
-                SDL_BlitSurface(rm->spr_tileanimation[0].getSurface(), g_tilesetmanager->rect(0, iSrcCol, iSrcRow), screen, g_tilesetmanager->rect(0, iCol, iRow));
+                rm->spr_tileanimation[0].draw(CTilesetManager::rect(DrawSize::Ingame, iSrcCol, iSrcRow), screen, CTilesetManager::rect(DrawSize::Ingame, iCol, iRow));
             } else if (tile->iID == TILESETUNKNOWN) {
-                SDL_BlitSurface(rm->spr_unknowntile[0].getSurface(), g_tilesetmanager->rect(0, 0, 0), screen, g_tilesetmanager->rect(0, iCol, iRow));
+                rm->spr_unknowntile[0].draw(CTilesetManager::rect(DrawSize::Ingame, 0, 0), screen, CTilesetManager::rect(DrawSize::Ingame, iCol, iRow));
 			}
 
             if (fDrawTileTypes) {
@@ -3298,24 +3298,24 @@ int editor_maphazards()
 		rm->menu_shade.draw(0, 0);
 
         if (MAPHAZARD_EDIT_STATE_SELECT == iEditState) {
-			SDL_BlitSurface(s_platform, &rBackground[0], screen, &rBackground[1]);
+			s_platform.draw(rBackground[0], screen, rBackground[1]);
 
 			rm->menu_font_small.draw(0, 480 - rm->menu_font_small.getHeight(), "Map Hazard Mode: [esc] Exit");
 
 			for (int iMapHazard = 0; iMapHazard < g_map->maphazards.size(); iMapHazard++)
-				SDL_BlitSurface(s_platform, &rIconRects[iMapHazard][0], screen, &rIconRects[iMapHazard][1]);
+				s_platform.draw(rIconRects[iMapHazard][0], screen, rIconRects[iMapHazard][1]);
 
 			if (g_map->maphazards.size() < MAXMAPHAZARDS)
-				SDL_BlitSurface(s_platform, &rNewButton[0], screen, &rNewButton[1]);
+				s_platform.draw(rNewButton[0], screen, rNewButton[1]);
 
 			rm->menu_font_small.drawCentered(320, rBackground[1].y - 18, "Hazards");
         } else if (MAPHAZARD_EDIT_STATE_TYPE == iEditState) {
-			//SDL_BlitSurface(s_platform, &rBackground[0], screen, &rBackground[1]);
+			//s_platform.draw(rBackground[0], screen, &rBackground[1]);
 
 			//Draw map hazard options
             for (short iType = 0; iType < 8; iType++) {
-				SDL_BlitSurface(s_maphazardbuttons, &rTypeButton[iType][0], screen, &rTypeButton[iType][1]);
-				SDL_BlitSurface(s_maphazardbuttons, &rTypeButton[iType][2], screen, &rTypeButton[iType][3]);
+				s_maphazardbuttons.draw(rTypeButton[iType][0], screen, rTypeButton[iType][1]);
+				s_maphazardbuttons.draw(rTypeButton[iType][2], screen, rTypeButton[iType][3]);
 
 				rm->menu_font_large.draw(rTypeButton[iType][1].x + 36, rTypeButton[iType][1].y + 6, szHazardNames[iType]);
 			}
@@ -3323,13 +3323,13 @@ int editor_maphazards()
 			rm->menu_font_small.draw(0, 480 - rm->menu_font_small.getHeight(), "Choose Hazard Type");
         } else if (MAPHAZARD_EDIT_STATE_LOCATION == iEditState) {
 			const MapHazard& hazard = g_map->maphazards[iEditMapHazard];
-			DrawMapHazard(hazard, 0, true);
+			DrawMapHazard(hazard, 0, true, blitdest);
 			DrawMapHazardControls(hazard);
 
 			rm->menu_font_small.draw(0, 480 - rm->menu_font_small.getHeight(), "Location: [esc] Exit, [p] Properties, [LMB] Set Location");
         } else if (MAPHAZARD_EDIT_STATE_PROPERTIES == iEditState) {
             const MapHazard& hazard = g_map->maphazards[iEditMapHazard];
-            DrawMapHazard(hazard, 0, true);
+            DrawMapHazard(hazard, 0, true, blitdest);
             DrawMapHazardControls(hazard);
 
             if (hazard.itype == 0 || hazard.itype == 1) {
@@ -3385,10 +3385,10 @@ void DrawMapHazardControls(const MapHazard& hazard)
 			iVelMarkerX = (short)((hazard.dparam[0] + 0.05f) / 0.005f) * 12 + 196;
 
 		SDL_Rect rVel[2] = {{0, 400, 244, 17},{198, 420, 244, 17}};
-		SDL_BlitSurface(s_platform, &rVel[0], screen, &rVel[1]);
+		s_platform.draw(rVel[0], screen, rVel[1]);
 
 		SDL_Rect rMarker[2] = {{244,400,8,18},{iVelMarkerX,418,8,18}};
-		SDL_BlitSurface(s_platform, &rMarker[0], screen, &rMarker[1]);
+		s_platform.draw(rMarker[0], screen, rMarker[1]);
 
         if (hazard.itype == 2) {
 			rm->menu_font_small.drawRightJustified(190, 420, "Left");
@@ -3403,10 +3403,10 @@ void DrawMapHazardControls(const MapHazard& hazard)
 		short iFreqMarkerX = ((hazard.iparam[0] / 30) - 1) * 12 + 196;
 
 		SDL_Rect rVel[2] = {{0, 384, 184, 13},{198, 390, 184, 13}};
-		SDL_BlitSurface(s_platform, &rVel[0], screen, &rVel[1]);
+		s_platform.draw(rVel[0], screen, rVel[1]);
 
 		SDL_Rect rMarker[2] = {{244,400,8,18},{iFreqMarkerX,388,8,18}};
-		SDL_BlitSurface(s_platform, &rMarker[0], screen, &rMarker[1]);
+		s_platform.draw(rMarker[0], screen, rMarker[1]);
 
 		rm->menu_font_small.drawRightJustified(190, 390, "More Frequent");
 		rm->menu_font_small.draw(388, 390, "Less Frequent");
@@ -3675,7 +3675,7 @@ int editor_tiles()
         r.w = 640;
         r.h = 480;
 
-        SDL_BlitSurface(g_tilesetmanager->tileset(set_tile_tileset)->surface(0), &rectSrc, screen, &r);
+        g_tilesetmanager->tileset(set_tile_tileset)->draw(DrawSize::Ingame, rectSrc, screen, r);
 		//rm->menu_font_small.drawRightJustified(640, 0, maplist->currentFilename().c_str());
                 rm->menu_font_small.draw(0, 480 - rm->menu_font_small.getHeight(), tileset->name());
 
@@ -3781,27 +3781,27 @@ int editor_blocks()
 		SDL_Rect rSrc = {0, 0, 224, 32};
 		SDL_Rect rDst = {0, 0, 224, 32};
 
-		SDL_BlitSurface(rm->spr_blocks[0].getSurface(), &rSrc, screen, &rDst);
+		rm->spr_blocks[0].draw(rSrc, screen, rDst);
 
 		SDL_Rect rOnOffSrc = {224, 0, 128, 64};
 		SDL_Rect rOnOffDst = {0, 32, 128, 64};
 
-		SDL_BlitSurface(rm->spr_blocks[0].getSurface(), &rOnOffSrc, screen, &rOnOffDst);
+		rm->spr_blocks[0].draw(rOnOffSrc, screen, rOnOffDst);
 
 		SDL_Rect rOnOffBlockSrc = {352, 0, 128, 64};
 		SDL_Rect rOnOffBlockDst = {128, 32, 128, 64};
 
-		SDL_BlitSurface(rm->spr_blocks[0].getSurface(), &rOnOffBlockSrc, screen, &rOnOffBlockDst);
+		rm->spr_blocks[0].draw(rOnOffBlockSrc, screen, rOnOffBlockDst);
 
 		SDL_Rect rBlocksRow2Src = {0, 32, 160, 32};
 		SDL_Rect rBlocksRow2Dst = {224, 0, 160, 32};
 
-		SDL_BlitSurface(rm->spr_blocks[0].getSurface(), &rBlocksRow2Src, screen, &rBlocksRow2Dst);
+		rm->spr_blocks[0].draw(rBlocksRow2Src, screen, rBlocksRow2Dst);
 
 		SDL_Rect rBlocksRow3Src = {0, 64, 320, 32};
 		SDL_Rect rBlocksRow3Dst = {0, 96, 320, 32};
 
-		SDL_BlitSurface(rm->spr_blocks[0].getSurface(), &rBlocksRow3Src, screen, &rBlocksRow3Dst);
+		rm->spr_blocks[0].draw(rBlocksRow3Src, screen, rBlocksRow3Dst);
 
 		rm->menu_font_small.drawRightJustified(640, 0, maplist->currentFilename().c_str());
 
@@ -4074,7 +4074,7 @@ int editor_tiletype()
 }
 
 short iPage;
-SDL_Surface * sBackgrounds[16];
+std::array<gfxSprite, 16> sBackgrounds;
 SDL_Rect rSrc = {0, 0, 160, 120};
 SDL_Rect rDst[16];
 
@@ -4096,7 +4096,7 @@ void init_editor_backgrounds()
     }
 
     for (short iSurface = 0; iSurface < 16; iSurface++)
-        sBackgrounds[iSurface] = SDL_CreateRGBSurface(screen->flags, 160, 120, 16, 0, 0, 0, 0);
+        sBackgrounds[iSurface] = gfxSprite::blank(160, 120);
 
     LoadBackgroundPage(sBackgrounds, iPage);
 
@@ -4108,20 +4108,20 @@ int editor_backgrounds()
     init_editor_backgrounds();
 
 		//handle messages
-        while (SDL_PollEvent(&event)) {
-            switch (event.type) {
-				case SDL_QUIT:
-                    for (short iSurface = 0; iSurface < 16; iSurface++)
-                        SDL_FreeSurface(sBackgrounds[iSurface]);
+    while (SDL_PollEvent(&event)) {
+        switch (event.type) {
+            case SDL_QUIT:
+                for (short iSurface = 0; iSurface < 16; iSurface++)
+                    sBackgrounds[iSurface] = gfxSprite();
 
-                    editor_backgrounds_initialized = false;
-                    return EDITOR_EDIT;
-				break;
+                editor_backgrounds_initialized = false;
+                return EDITOR_EDIT;
+                break;
 
-				case SDL_KEYDOWN:
+            case SDL_KEYDOWN:
                 if (event.key.keysym.sym == SDLK_ESCAPE) {
-					for (short iSurface = 0; iSurface < 16; iSurface++)
-                        SDL_FreeSurface(sBackgrounds[iSurface]);
+                    for (short iSurface = 0; iSurface < 16; iSurface++)
+                        sBackgrounds[iSurface] = gfxSprite();
 
                     editor_backgrounds_initialized = false;
                     return EDITOR_EDIT;
@@ -4150,8 +4150,8 @@ int editor_backgrounds()
                             {
                                 backgroundlist->setCurrentIndex(iPage * 16 + iBackground);
 
-                                rm->spr_background = gfxSprite(backgroundlist->currentPath());
-                                g_map->szBackgroundFile = getFilenameFromPath(backgroundlist->currentPath().string());
+                                rm->spr_background = ImageLoader(backgroundlist->currentPath()).withoutColorKey().create();
+                                g_map->szBackgroundFile = backgroundlist->currentPath().filename().string();
 
                                 if (event.button.button == SDL_BUTTON_LEFT) {
 									//Set music to background default
@@ -4164,7 +4164,7 @@ int editor_backgrounds()
 								}
 
                                 for (short iSurface = 0; iSurface < 16; iSurface++)
-                                    SDL_FreeSurface(sBackgrounds[iSurface]);
+                                    sBackgrounds[iSurface] = gfxSprite();
 
                                 editor_backgrounds_initialized = false;
                                 return EDITOR_EDIT;
@@ -4189,7 +4189,7 @@ int editor_backgrounds()
             if (iPage * 16 + iBackground >= backgroundlist->count())
 				break;
 
-			SDL_BlitSurface(sBackgrounds[iBackground], &rSrc, screen, &rDst[iBackground]);
+			sBackgrounds[iBackground].draw(rSrc, screen, rDst[iBackground]);
 		}
 
 		rm->menu_font_small.draw(0,480-rm->menu_font_small.getHeight() * 2, "[Page Up] next page, [Page Down] previous page");
@@ -4383,7 +4383,7 @@ int editor_animation()
 		return EDITOR_ANIMATION;
 }
 
-void LoadBackgroundPage(SDL_Surface ** sBackgrounds, short iPage)
+void LoadBackgroundPage(std::array<gfxSprite, 16>& sBackgrounds, short iPage)
 {
 	SDL_Rect srcRectBackground = {0, 0, 640, 480};
 	SDL_Rect dstRectBackground = {0, 0, 160, 120};
@@ -4392,43 +4392,21 @@ void LoadBackgroundPage(SDL_Surface ** sBackgrounds, short iPage)
 		if (iPage * 16 + iIndex >= backgroundlist->count())
 			break;
 
-		std::string szFileName = backgroundlist->at(iPage * 16 + iIndex).string();
-
-		if (szFileName.empty())
+		const std::filesystem::path& path = backgroundlist->at(iPage * 16 + iIndex);
+		if (path.empty())
 			return;
 
-		SDL_Surface * temp = IMG_Load(szFileName.c_str());
+		gfxSprite temp = ImageLoader(path).withoutColorKey().create();
 
-		if (!temp) {
-			printf("ERROR: Couldn't load thumbnail background: %s\n", SDL_GetError());
-			return;
-		}
+		SDL_FillRect(sBackgrounds[iIndex].getSurface(), NULL, 0x0);
 
-		SDL_Surface * sBackground = SDL_ConvertSurfaceFormat(temp, SDL_PIXELFORMAT_ARGB8888, 0);
-		SDL_FreeSurface(temp);
-
-		if (!sBackground) {
-			printf("ERROR: Couldn't convert thumbnail background to display pixel format: %s\n", SDL_GetError());
-			return;
-		}
-
-		SDL_FillRect(sBackgrounds[iIndex], NULL, 0x0);
-
-		if (sBackground->w != 640 || sBackground->h != 480) {
+		if (temp.getWidth() != 640 || temp.getHeight() != 480) {
 			printf("WARNING: Background %s is %dx%d but must be 640x480. Skipping.\n",
-				szFileName.c_str(), sBackground->w, sBackground->h);
-
-			SDL_FreeSurface(sBackground);
+				path.generic_string().c_str(), temp.getWidth(), temp.getHeight());
 			continue;
 		}
 
-		if (SDL_BlitScaled(sBackground, &srcRectBackground, sBackgrounds[iIndex], &dstRectBackground) < 0) {
-			fprintf(stderr, "SDL_SCALEBLIT error: %s\n", SDL_GetError());
-			SDL_FreeSurface(sBackground);
-			return;
-		}
-
-		SDL_FreeSurface(sBackground);
+		temp.drawStretch(srcRectBackground, sBackgrounds[iIndex].getSurface(), dstRectBackground);
 	}
 }
 
@@ -4710,7 +4688,7 @@ int find()
 	//char mapLocation[FILEBUFSIZE] = "maps/";
 
     if (dialog("Find Map", "Enter name:", fileName, 64)) {
-		strcpy(findstring, fileName);
+		findstring = fileName;
 
         if (maplist->find(findstring)) {
 			loadcurrentmap();
@@ -4761,7 +4739,7 @@ void loadcurrentmap()
 		}
 	}
 
-	std::string filename = concat("gfx/packs/Classic/backgrounds/", g_map->szBackgroundFile);
+	std::string filename = "gfx/packs/Classic/backgrounds/" + g_map->szBackgroundFile;
 	std::string path = convertPath(filename);
     backgroundlist->setCurrentPath(filename);
 
@@ -4770,7 +4748,7 @@ void loadcurrentmap()
         backgroundlist->setCurrentPath("gfx/packs/Classic/backgrounds/Land_Classic.png");
 	}
 
-	rm->spr_background = gfxSprite(path);
+    rm->spr_background = ImageLoader(path).withoutColorKey().create();
 
         g_iNumPlatforms = g_map->platforms.size();
 
@@ -4946,7 +4924,7 @@ void CalculatePlatformDims(short iPlatform, short * ix, short * iy, short * iw, 
 
 int findcurrentstring()
 {
-    if (findstring[0] != '\0') {
+    if (!findstring.empty()) {
         if (maplist->find(findstring)) {
 			loadcurrentmap();
 		}
@@ -5213,29 +5191,29 @@ void takescreenshot()
 	short iTileSizes[3] = {TILESIZE, PREVIEWTILESIZE, THUMBTILESIZE};
 	SDL_Surface * old_screen = screen;
 
-    for (short iScreenshotSize = 0; iScreenshotSize < 3; iScreenshotSize++) {
+	for (short iScreenshotSize = 0; iScreenshotSize < 3; iScreenshotSize++) {
 		short iTileSize = iTileSizes[iScreenshotSize];
 
 		//Allow wrapping of path dots
 		rm->spr_platformpath.setWrap(640 >> iScreenshotSize);
 
 		//Create new screenshot surface
-		SDL_Surface * screenshot = SDL_CreateRGBSurface(old_screen->flags, iTileSize * 20, iTileSize * 15, old_screen->format->BitsPerPixel, 0, 0, 0, 0);
-		blitdest = screenshot;
-		screen = screenshot;
+		auto screenshot = gfxSprite::blank(iTileSize * 20, iTileSize * 15);
+		blitdest = screenshot.getSurface();
+		screen = screenshot.getSurface();
 
 		//Draw map to screenshot
 		drawmap(true, iTileSize);
 
 		//Draw platforms to screenshot
-        for (short iPlatform = 0; iPlatform < g_iNumPlatforms; iPlatform++) {
+		for (short iPlatform = 0; iPlatform < g_iNumPlatforms; iPlatform++) {
 			MapPlatform * platform = &g_Platforms[iPlatform];
-			DrawPlatform(platform->iPathType, platform->tiles, platform->iStartX, platform->iStartY, platform->iEndX, platform->iEndY, platform->fAngle, platform->fRadiusX, platform->fRadiusY, iScreenshotSize, g_map->platforms[iPlatform]->iTileWidth, g_map->platforms[iPlatform]->iTileHeight, true, true);
+			DrawPlatform(platform->iPathType, platform->tiles, platform->iStartX, platform->iStartY, platform->iEndX, platform->iEndY, platform->fAngle, platform->fRadiusX, platform->fRadiusY, iScreenshotSize, g_map->platforms[iPlatform]->iTileWidth, g_map->platforms[iPlatform]->iTileHeight, true, true, blitdest);
 		}
 
 		//Draw map hazards
-                for (const MapHazard& hazard : g_map->maphazards)
-                    DrawMapHazard(hazard, iScreenshotSize, false);
+		for (const MapHazard& hazard : g_map->maphazards)
+			DrawMapHazard(hazard, iScreenshotSize, false, blitdest);
 
 		//Save the screenshot with the same name as the map file
 		std::string szSaveFile("maps/screenshots/");
@@ -5247,15 +5225,13 @@ void takescreenshot()
 			szSaveFile += "_thumb";
 
 		szSaveFile += ".png";
-		IMG_SavePNG(screenshot, convertPath(szSaveFile).c_str());
-
-		SDL_FreeSurface(screenshot);
+		IMG_SavePNG(screenshot.getSurface(), convertPath(szSaveFile).c_str());
 
 		printf("Screenshot taken: %s\n", szSaveFile.c_str());
-	}
 
-	screen = old_screen;
-	blitdest = screen;
+		screen = old_screen;
+		blitdest = screen;
+	}
 }
 
 bool ReadAnimatedTileTypeFile(const char * szFile)

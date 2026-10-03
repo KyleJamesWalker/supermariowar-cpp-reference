@@ -48,7 +48,7 @@ void MapReader1702::read_autofilters(CMap& map, BinaryFile& mapfile)
 
 void MapReader1700::read_tiles(CMap& map, BinaryFile& mapfile)
 {
-    short iClassicTilesetID = g_tilesetmanager->indexFromName("Classic");
+    short iClassicTilesetID = g_tilesetmanager->classicTilesetIndex();
 
     unsigned short i, j, k;
     for (j = 0; j < MAPHEIGHT; j++) {
@@ -86,9 +86,7 @@ void MapReader1700::read_tiles(CMap& map, BinaryFile& mapfile)
 void MapReader1701::read_background(CMap& map, BinaryFile& mapfile)
 {
     //Read in background to use
-    char text[128];
-    mapfile.read_string_long(text, 128);
-    map.szBackgroundFile = text;
+    map.szBackgroundFile = mapfile.read_string_long(128);
 
     for (const std::string_view background : g_szBackgroundConversion) {
         // All items must have an underscore in g_szBackgroundConversion
@@ -105,9 +103,7 @@ void MapReader1701::read_background(CMap& map, BinaryFile& mapfile)
 void MapReader1702::read_background(CMap& map, BinaryFile& mapfile)
 {
     //Read in background to use
-    char text[128];
-    mapfile.read_string_long(text, 128);
-    map.szBackgroundFile = text;
+    map.szBackgroundFile = mapfile.read_string_long(128);
 }
 
 void MapReader1700::set_preview_switches(CMap& map, BinaryFile& mapfile)
@@ -274,7 +270,7 @@ MapReader1700::read_platform_tiles(CMap& map, BinaryFile& mapfile, short iWidth,
                 tile.iCol = iTile % TILESETWIDTH;
                 tile.iRow = iTile / TILESETWIDTH;
 
-                type = g_tilesetmanager->classicTileset().tileType(tile.iCol, tile.iRow);
+                type = g_tilesetmanager->classicTileset()->tileType(tile.iCol, tile.iRow);
             }
 
             tiles.emplace_back(std::move(tile));

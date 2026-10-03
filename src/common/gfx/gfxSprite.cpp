@@ -21,14 +21,15 @@ extern short y_shake;
 namespace {
 SdlSurfacePtr loadImage(
     const fs::path& path,
+    bool optimize = true,
     std::optional<RGB> color_key = std::nullopt,
     std::optional<Uint8> alpha = std::nullopt)
 {
-    const std::string path_str = path.string();
+    const std::string path_str = path.generic_string();
 
-    std::cout << "loading sprite";
+    std::cout << "loading sprite ";
     if (color_key) {
-        std::cout << " with key";
+        std::cout << "with key";
         if (alpha) {
             std::cout << "+alpha";
         }
@@ -53,8 +54,10 @@ SdlSurfacePtr loadImage(
         throw std::format("Couldn't convert {} to the display's pixel format: {}", path_str, SDL_GetError());
     }
 
-    if (SDL_SetSurfaceRLE(img.get(), 1) < 0) {
-        throw std::format("Couldn't set RLE acceleration for {}: {}", path_str, SDL_GetError());
+    if (optimize) {
+        if (SDL_SetSurfaceRLE(img.get(), 1) < 0) {
+            throw std::format("Couldn't set RLE acceleration for {}: {}", path_str, SDL_GetError());
+        }
     }
 
     if (alpha) {
@@ -79,47 +82,47 @@ void blitSurface(SDL_Surface* src, const SDL_Rect* srcArea, SDL_Surface* dst, SD
 } // namespace
 
 
-gfxSprite::gfxSprite(const fs::path& filename, std::optional<RGB> color_key, std::optional<Uint8> alpha, std::optional<int> wrap)
-    : gfxSprite(loadImage(filename, color_key, alpha), wrap)
-{}
-
 gfxSprite::gfxSprite(SdlSurfacePtr image, std::optional<int> wrap)
     : m_picture(std::move(image))
     , m_wrap_x(wrap)
 {}
 
+gfxSprite gfxSprite::blank(unsigned w, unsigned h)
+{
+    auto surf = SdlSurfacePtr(SDL_CreateRGBSurfaceWithFormat(0x0, w, h, screen->format->BitsPerPixel, screen->format->format));
+    if (!surf)
+        throw std::format("Couldn't create blank surface: {}", SDL_GetError());
+
+    if (SDL_SetSurfaceBlendMode(surf.get(), SDL_BLENDMODE_NONE) < 0)
+        throw std::format("Couldn't set blend mode for blank surface: {}", SDL_GetError());
+
+    return gfxSprite(std::move(surf));
+}
+
 void gfxSprite::draw(int x, int y) const
 {
-    assert(m_picture);
-
-    SDL_Rect dstRect {x + x_shake, y + y_shake, getWidth(), getHeight()};
-    blitSurface(m_picture.get(), NULL, blitdest, &dstRect);
-
-    if (m_wrap_x) {
-        if (x + getWidth() >= *m_wrap_x) {
-            dstRect.x -= *m_wrap_x;
-            blitSurface(m_picture.get(), NULL, blitdest, &dstRect);
-        } else if (x < 0) {
-            dstRect.x += *m_wrap_x;
-            blitSurface(m_picture.get(), NULL, blitdest, &dstRect);
-        }
-    }
+    blit(nullptr, blitdest, {x + x_shake, y + y_shake});
 }
 
 void gfxSprite::draw(int x, int y, const SDL_Rect& srcRect) const
 {
+    blit(&srcRect, blitdest, {x + x_shake, y + y_shake});
+}
+
+void gfxSprite::blit(const SDL_Rect* srcRect, SDL_Surface* dst, Vec2i dstPos) const
+{
     assert(m_picture);
 
-    SDL_Rect dstRect {x + x_shake, y + y_shake, srcRect.w, srcRect.h};
-    blitSurface(m_picture.get(), &srcRect, blitdest, &dstRect);
+    SDL_Rect dstRect { dstPos.x, dstPos.y, 0, 0 };
+    blitSurface(m_picture.get(), srcRect, dst, &dstRect);
 
     if (m_wrap_x) {
-        if (x + getWidth() >= *m_wrap_x) {
-            dstRect.x -= *m_wrap_x;
-            blitSurface(m_picture.get(), &srcRect, blitdest, &dstRect);
-        } else if (x < 0) {
-            dstRect.x += *m_wrap_x;
-            blitSurface(m_picture.get(), &srcRect, blitdest, &dstRect);
+        if (dstRect.x + getWidth() >= *m_wrap_x) {
+            dstRect = { dstPos.x - *m_wrap_x, dstPos.y, 0, 0 };  // NOTE: SDL2 modifies the dst rect
+            blitSurface(m_picture.get(), srcRect, dst, &dstRect);
+        } else if (dstRect.x < 0) {
+            dstRect = { dstPos.x + *m_wrap_x, dstPos.y, 0, 0 };  // NOTE: SDL2 modifies the dst rect
+            blitSurface(m_picture.get(), srcRect, dst, &dstRect);
         }
     }
 }
@@ -160,14 +163,14 @@ void gfxSprite::draw(int x, int y, const SDL_Rect& srcRect, ClipEdge clipEdge, i
     }
 }
 
-void gfxSprite::drawStretch(const SDL_Rect& dstRect, const SDL_Rect& srcRect) const
+void gfxSprite::drawStretch(const SDL_Rect& srcRect, SDL_Surface* dst, const SDL_Rect& dstRect) const
 {
     assert(m_picture);
 
     // TODO: SDL2 requires dst to be writable. Fixed in SDL3.
     SDL_Rect dstRect_w = dstRect;
 
-    if (SDL_BlitScaled(m_picture.get(), &srcRect, blitdest, &dstRect_w) < 0) {
+    if (SDL_BlitScaled(m_picture.get(), &srcRect, dst, &dstRect_w) < 0) {
         fprintf(stderr, "SDL_BlitScaled error: %s\n", SDL_GetError());
     }
 }
@@ -189,4 +192,10 @@ void gfxSprite::setalpha(Uint8 alpha)
 void gfxSprite::setWrap(short wrapsize)
 {
     m_wrap_x = wrapsize;
+}
+
+
+gfxSprite ImageLoader::create() const
+{
+    return gfxSprite(loadImage(m_path, m_optimize, m_color_key, m_alpha), m_wrap_x);
 }

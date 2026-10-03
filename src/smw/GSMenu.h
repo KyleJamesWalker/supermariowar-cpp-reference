@@ -75,6 +75,10 @@ class MenuState : public GameState
 
         static MenuState& instance();
 
+        const char* harnessMenuName() const;
+        int harnessFocusIndex() const;
+        bool harnessModifying() const;
+
 #ifdef _DEBUG
 
 		void LoadScript(const char * szScriptFile);

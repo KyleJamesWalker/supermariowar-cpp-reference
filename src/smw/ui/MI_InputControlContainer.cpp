@@ -1,4 +1,5 @@
 #include "MI_InputControlContainer.h"
+#include "Harness.h"
 
 #include "GameValues.h"
 #include "gfx/gfxSprite.h"
@@ -85,7 +86,7 @@ MenuCodeEnum MI_InputControlField::SendInput(CPlayerInput *)
 
     while (!done) {
         #ifndef __EMSCRIPTEN__
-        SDL_WaitEvent(&event);
+        harness::waitEvent(&event);
         #endif
 
         /*

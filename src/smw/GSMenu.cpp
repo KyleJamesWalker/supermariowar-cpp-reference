@@ -1,4 +1,5 @@
 #include "GSMenu.h"
+#include "Harness.h"
 
 #include "FileList.h"
 #include "Game.h"
@@ -159,9 +160,67 @@ bool MenuState::init()
     mNetRoomMenu = std::make_unique<UI_NetRoomMenu>();
 
     mCurrentMenu = mMainMenu.get();
+
+    if (const char* forcedMap = harness::forcedMap()) {
+        if (!maplist->findexact(forcedMap, false) && !maplist->find(forcedMap)) {
+            fprintf(stderr, "[harness] SMW_MAP '%s' not found\n", forcedMap);
+            exit(2);
+        }
+        mGameSettingsMenu->miMapField->LoadCurrentMap();
+    }
+
     szCurrentMapName = mGameSettingsMenu->miMapField->GetMapName();
 
     return true;
+}
+
+const char* MenuState::harnessMenuName() const
+{
+    const std::pair<const UI_Menu*, const char*> names[] = {
+        {mMainMenu.get(), "main"},
+        {mOptionsMenu.get(), "options"},
+        {mGameplayOptionsMenu.get(), "gameplay_options"},
+        {mTeamOptionsMenu.get(), "team_options"},
+        {mPowerupDropRatesMenu.get(), "powerup_drop_rates"},
+        {mPowerupSettingsMenu.get(), "powerup_settings"},
+        {mProjectileLimitsMenu.get(), "projectile_limits"},
+        {mProjectileOptionsMenu.get(), "projectile_options"},
+        {mGraphicsOptionsMenu.get(), "graphics_options"},
+        {mEyeCandyOptionsMenu.get(), "eyecandy_options"},
+        {mSoundOptionsMenu.get(), "sound_options"},
+        {mPlayerControlsSelectMenu.get(), "player_controls_select"},
+        {mPlayerControlsMenu.get(), "player_controls"},
+        {mModeOptionsMenu.get(), "mode_options"},
+        {mMatchSelectionMenu.get(), "match_selection"},
+        {mGameSettingsMenu.get(), "game_settings"},
+        {mMapFilterEditMenu.get(), "map_filter_edit"},
+        {mTourStopMenu.get(), "tour_stop"},
+        {mWorldMenu.get(), "world"},
+        {mTeamSelectMenu.get(), "team_select"},
+        {mTournamentScoreboardMenu.get(), "tournament_scoreboard"},
+        {mBonusWheelMenu.get(), "bonus_wheel"},
+        {mNetServersMenu.get(), "net_servers"},
+        {mNetEditServersMenu.get(), "net_edit_servers"},
+        {mNetLobbyMenu.get(), "net_lobby"},
+        {mNetNewRoomMenu.get(), "net_new_room"},
+        {mNetNewRoomSettingsMenu.get(), "net_new_room_settings"},
+        {mNetRoomMenu.get(), "net_room"},
+    };
+    for (const auto& [menu, name] : names) {
+        if (menu == mCurrentMenu)
+            return name;
+    }
+    return "unknown";
+}
+
+int MenuState::harnessFocusIndex() const
+{
+    return mCurrentMenu ? mCurrentMenu->currentFocusIndex() : -1;
+}
+
+bool MenuState::harnessModifying() const
+{
+    return mCurrentMenu && mCurrentMenu->IsModifying();
 }
 
 //---------------------------------------------------------------

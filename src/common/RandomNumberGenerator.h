@@ -29,6 +29,10 @@ class RandomNumberGenerator {
 public:
     static RandomNumberGeneratorType& generator();
 
+    static unsigned long long callCount();
+    static unsigned lastValue();
+    static void resetCallCount();
+
 private:
     RandomNumberGenerator();
     ~RandomNumberGenerator();

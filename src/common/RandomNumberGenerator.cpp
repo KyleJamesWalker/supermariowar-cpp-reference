@@ -53,6 +53,24 @@ RandomNumberGenerator::~RandomNumberGenerator() {
     delete rng;
 }
 
+namespace {
+unsigned long long g_callCount = 0;
+unsigned g_lastValue = 0;
+}
+
+unsigned long long RandomNumberGenerator::callCount() {
+    return g_callCount;
+}
+
+unsigned RandomNumberGenerator::lastValue() {
+    return g_lastValue;
+}
+
+void RandomNumberGenerator::resetCallCount() {
+    g_callCount = 0;
+    g_lastValue = 0;
+}
+
 RandomNumberGeneratorType& RandomNumberGenerator::generator() {
     static RandomNumberGenerator grng;
     return *(grng.rng);
@@ -79,6 +97,7 @@ int SystemRandomNumberGenerator::getInteger(int rMin, int rMax)
 // this constitutes a good enough seed
 unsigned Well512RandomNumberGenerator::getNext()
 {
+    g_callCount++;
     unsigned a, b, c, d;
     a = state[index];
     c = state[(index+13)&15];
@@ -90,6 +109,7 @@ unsigned Well512RandomNumberGenerator::getNext()
     index = (index + 15)&15;
     a = state[index];
     state[index] = a^b^d^(a<<2)^(b<<18)^(c<<28);
+    g_lastValue = state[index];
     return state[index];
 }
 

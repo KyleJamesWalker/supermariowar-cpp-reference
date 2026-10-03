@@ -24,6 +24,8 @@ public:
     UI_Control* initialFocus() const { return m_initialFocus; }
     /// The currently focused element of the menu.
     UI_Control* currentFocus() const { return m_currentFocus; }
+    /// Index of the focused element in insertion order, or -1.
+    int currentFocusIndex() const;
 
     void SetCancelCode(MenuCodeEnum code) {
         cancelCode = code;

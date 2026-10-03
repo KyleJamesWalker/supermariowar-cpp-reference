@@ -247,3 +247,12 @@ void UI_Menu::Refresh()
         control->Refresh();
     }
 }
+
+int UI_Menu::currentFocusIndex() const
+{
+    for (size_t i = 0; i < controls.size(); i++) {
+        if (controls[i].get() == m_currentFocus)
+            return (int)i;
+    }
+    return -1;
+}

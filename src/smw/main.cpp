@@ -55,6 +55,7 @@
 
 #include "FPSLimiter.h"
 #include "GSSplashScreen.h"
+#include "Harness.h"
 
 #include <ctime>
 #include <cmath>
@@ -152,7 +153,9 @@ void gameloop_frame()
     {
         FPSLimiter::instance().frameStart();
 
+        harness::frameStart();
         GameStateManager::instance().currentState->update();
+        harness::frameEnd();
 
         FPSLimiter::instance().beforeFlip();
         gfx_flipscreen();
@@ -354,6 +357,8 @@ void main_game()
     printf("-------------------------------------------------------------------------------\n");
     printf("\n---------------- startup ----------------\n");
 
+    harness::init();
+
     ensureSettingsDir();
     create_globals();
 
@@ -414,7 +419,7 @@ void main_game()
         gfx_loadpalette(convertPath("gfx/packs/palette.bmp", gamegraphicspacklist->currentPath()));
     }
 
-    srand((unsigned int)time(NULL));
+    srand(harness::libcSeed((unsigned int)time(NULL)));
 /*
     bool fLoadOK = LoadAndSplashScreenState();
 

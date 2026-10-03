@@ -410,6 +410,7 @@ private:
 
 		friend void RemovePlayersButHighestScoring();
 		friend void RemovePlayersButTeam(short teamID);
+		friend struct HarnessAccess;
 		friend bool RemoveTeam(short teamid);
 		friend short CountAliveTeams(short * lastteam);
 			friend void shakeScreen();

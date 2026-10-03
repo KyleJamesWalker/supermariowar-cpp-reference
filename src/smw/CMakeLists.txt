@@ -11,6 +11,8 @@ add_executable(smw WIN32
 	GSMenu.h
 	GSSplashScreen.cpp
 	GSSplashScreen.h
+	Harness.cpp
+	Harness.h
 	net.cpp
 	net.h
 	network/FileCompressor.cpp

@@ -9,6 +9,8 @@
 #include <array>
 #include <bitset>
 #include <filesystem>
+#include <string>
+#include <vector>
 
 struct MixDeleter {
     void operator()(Mix_Chunk* ptr) const noexcept;
@@ -19,6 +21,14 @@ using MixMusicPtr = std::unique_ptr<Mix_Music, MixDeleter>;
 
 
 bool sfx_init();
+// Clock used for the sfxSound::play() retrigger throttle; the replay harness swaps it.
+extern Uint32 (SDLCALL *sfx_ticks)(void);
+extern bool sfx_ignore_channel_failure;
+// Seeded replays replace SDL_mixer playback state with a virtual mixer driven by sfx_ticks,
+// and log every sound command to sfx_events (port/REPLAY.md, "Sound").
+extern bool sfx_virtual_mixer;
+extern std::vector<std::string> sfx_events;
+void sfx_virtual_advance();
 void sfx_close();
 void sfx_stopallsounds();
 void sfx_setmusicvolume(int volume);
@@ -43,6 +53,7 @@ public:
 
 private:
     MixChunkPtr m_sfx;
+    std::string m_name;
     std::bitset<k_channels> m_channels;
     size_t m_last_start_time = 0;
 
@@ -64,5 +75,6 @@ public:
 
 private:
     MixMusicPtr m_music;
+    std::string m_name;
     bool m_paused = false;
 };

@@ -1,6 +1,7 @@
 #include "FPSLimiter.h"
 
 #include "GameValues.h"
+#include "Harness.h"
 #include "ResourceManager.h"
 
 #include "SDL.h"
@@ -54,6 +55,9 @@ void FPSLimiter::beforeFlip()
 void FPSLimiter::afterFlip()
 {
     flipfps = 1000.0f / (float)ticks;
+
+    if (harness::noLimit())
+        return;
 
     //Sleep for time just under what we need
     short delay = (short)(game_values.framelimiter - SDL_GetTicks() + framestart - 2);

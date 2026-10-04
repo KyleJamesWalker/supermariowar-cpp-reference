@@ -1,6 +1,7 @@
 #include "Harness.h"
 
 #include "eyecandy.h"
+#include "gamemodes/Star.h"
 #include "GameMode.h"
 #include "GameValues.h"
 #include "GSGameplay.h"
@@ -228,6 +229,15 @@ void dumpFrame()
             (int)mode->gamemode, mode->gameover ? 1 : 0, mode->winningteam);
         for (const CPlayer* player : players)
             HarnessAccess::dumpPlayer(g_dump, *player);
+        if (mode->gamemode == game_mode_star) {
+            CGM_Star* star = static_cast<CGM_Star*>(mode);
+            fprintf(g_dump, "T type=%d holders=", (int)star->getcurrentmodetype());
+            for (short iStar = 0; iStar < 3; iStar++) {
+                const CPlayer* holder = star->getstarplayer(iStar);
+                fprintf(g_dump, iStar ? ",%d" : "%d", holder ? holder->getGlobalID() : -1);
+            }
+            fprintf(g_dump, "\n");
+        }
         fprintf(g_dump, "O noncol=%zu obj0=%zu obj1=%zu obj2=%zu ec0=%zu ec1=%zu ec2=%zu\n",
             noncolcontainer.list().size(),
             objectcontainer[0].list().size(), objectcontainer[1].list().size(), objectcontainer[2].list().size(),

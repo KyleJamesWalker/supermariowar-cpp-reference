@@ -16,6 +16,7 @@
 #include "SDL.h"
 
 #include <algorithm>
+#include <climits>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -67,6 +68,10 @@ long g_maxFrames = -1;
 FILE* g_dump = nullptr;
 std::set<unsigned> g_shotFrames;
 std::string g_shotDir = ".";
+unsigned g_shotEvery = 0;
+unsigned g_shotFrom = 0;
+unsigned g_shotTo = UINT_MAX;
+FILE* g_shotStream = nullptr;
 std::vector<ReplayEvent> g_events;
 int g_joysticks = 0;
 bool g_replay = false;
@@ -236,6 +241,26 @@ void dumpFrame()
         (unsigned long long)RandomNumberGenerator::callCount(), RandomNumberGenerator::lastValue());
 }
 
+// Raw ARGB8888 rows (BGRA bytes on little-endian), the format tools/replay_video.py reads.
+void writeScreenRaw()
+{
+    SDL_Surface* surface = screen->format->format == SDL_PIXELFORMAT_ARGB8888
+        ? screen : SDL_ConvertSurfaceFormat(screen, SDL_PIXELFORMAT_ARGB8888, 0);
+    bool ok = surface != nullptr;
+    if (ok) {
+        SDL_LockSurface(surface);
+        for (int y = 0; ok && y < surface->h; y++)
+            ok = fwrite((const char*)surface->pixels + y * surface->pitch, 4, surface->w, g_shotStream) == (size_t)surface->w;
+        SDL_UnlockSurface(surface);
+        if (surface != screen)
+            SDL_FreeSurface(surface);
+    }
+    if (!ok || fflush(g_shotStream) != 0) {
+        fprintf(stderr, "[harness] cannot write shot stream at frame %u\n", g_frame);
+        exit(2);
+    }
+}
+
 } // namespace
 
 
@@ -285,6 +310,22 @@ void init()
     }
     if (const char* dir = env("SMW_SHOT_DIR"))
         g_shotDir = dir;
+    if (const char* range = env("SMW_SHOT_RANGE")) {
+        char* end = nullptr;
+        g_shotFrom = (unsigned)strtoul(range, &end, 10);
+        if (*end == '-' && end[1])
+            g_shotTo = (unsigned)strtoul(end + 1, nullptr, 10);
+        g_shotEvery = 1;
+    }
+    if (const char* every = env("SMW_SHOT_EVERY"))
+        g_shotEvery = std::max(1ul, strtoul(every, nullptr, 10));
+    if (const char* stream = env("SMW_SHOT_STREAM")) {
+        g_shotStream = fopen(stream, "ab");
+        if (!g_shotStream) {
+            fprintf(stderr, "[harness] cannot open shot stream %s\n", stream);
+            exit(2);
+        }
+    }
 }
 
 unsigned libcSeed(unsigned fallback)
@@ -337,7 +378,11 @@ void frameEnd()
     }
     sfx_events.clear();
 
-    if (g_shotFrames.count(g_frame)) {
+    bool periodic = g_shotEvery > 0 && g_frame >= g_shotFrom && g_frame <= g_shotTo
+        && (g_frame - g_shotFrom) % g_shotEvery == 0;
+    if (periodic && g_shotStream)
+        writeScreenRaw();
+    if (g_shotFrames.count(g_frame) || (periodic && !g_shotStream)) {
         std::string path = g_shotDir + "/frame_" + std::to_string(g_frame) + ".bmp";
         if (SDL_SaveBMP(screen, path.c_str()) != 0)
             fprintf(stderr, "[harness] cannot save %s: %s\n", path.c_str(), SDL_GetError());

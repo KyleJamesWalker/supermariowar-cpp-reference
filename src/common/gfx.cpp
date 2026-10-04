@@ -129,9 +129,11 @@ gfxSprite createSkinSurface(
     if (SDL_SetColorKey(out.getSurface(), SDL_TRUE, color_key) < 0) {
         throw std::format("Couldn't set color key for new skin surface: {}", SDL_GetError());
     }
+#ifndef SMW_NO_RLE
     if (SDL_SetSurfaceRLE(out.getSurface(), 1) < 0) {
         throw std::format("Couldn't set RLE acceleration for new skin surface: {}", SDL_GetError());
     }
+#endif
 
     return out;
 }

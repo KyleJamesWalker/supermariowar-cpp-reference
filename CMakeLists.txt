@@ -21,6 +21,7 @@ option(USE_PNG_SAVE "Use PNG for screenshots and thumbnails" ON)
 option(NO_NETWORK "Disable all network communication" OFF)
 option(SDL2_FORCE_GLES "(SDL2) Use OpenGL ES rendering if possible" OFF)
 option(BUILD_TESTS "Build the unit tests" ON)
+option(SMW_NO_RLE "Do not RLE-encode sprite and font surfaces" OFF)
 
 set(SMW_INSTALL_PORTABLE_DEFAULT OFF)
 if(WIN32)
@@ -80,6 +81,10 @@ else()
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -s")
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -s")
 	endif()
+endif()
+
+if (SMW_NO_RLE)
+	add_definitions(-DSMW_NO_RLE)
 endif()
 
 if (EMSCRIPTEN)

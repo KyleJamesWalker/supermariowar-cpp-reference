@@ -4,12 +4,11 @@ This is upstream [mmatyas/supermariowar](https://github.com/mmatyas/supermariowa
 
 ## Branches
 
-- `master`: upstream, unmodified (remote `upstream`).
-- `harness-latest`: `harness` merged with upstream `5693918f`, the commit the Rust port's `upstream-sync` branch matches, plus the stored-settings fix to the level editor dump.
-- `harness-rle`: `harness-latest` plus the `SMW_NO_RLE` build option, which `build-reference.sh` turns on.
-- `harness`: upstream `a7f7e25`, the commit the Rust port was first translated from, plus two commits:
-  - the game replay and state-dump harness (`tools/cpp-harness.patch` in the Rust repo);
-  - the editor harness (`tools/editor-harness.patch`).
+- `harness-latest` (default): upstream `5693918f` plus the game and editor harness and the `SMW_NO_RLE` option. Changes to the harness land here through PRs, and the Rust port's goldens and `tools/*-harness.patch` (`git diff master harness-latest`) come from it.
+- `master`: upstream, unmodified (remote `upstream`). Fixes meant for upstream branch from here, so their PRs carry no harness code.
+- Tag `port-base-a7f7e25`: upstream `a7f7e25`, the commit the Rust port was first translated from, plus the two original harness commits.
+
+To sync a newer upstream, the Rust repo's `tools/upstream_sync.sh` merges it into a `harness-<sha>` branch from `harness-latest`; that lands back here as a PR once the port matches.
 
 Every hook is a no-op unless its `SMW_*` environment variable is set, so a harness build plays like upstream. The Rust repo's `REPLAY.md` and `EDITOR_REPLAY.md` are the spec.
 
@@ -19,7 +18,7 @@ Every hook is a no-op unless its `SMW_*` environment variable is set, so a harne
 ./build-reference.sh   # NO_NETWORK, SMW_NO_RLE Release build with -ffp-contract=off, which the parity comparison needs
 ```
 
-The Rust repo's `tools/run_ref.sh` runs this binary through `SMW_BIN` (default `~/work/smw-ref/build/smw`).
+The Rust repo's `tools/run_ref.sh` runs `build/smw` from this checkout (`SMW_REF_DIR`, default `~/work/supermariowar-cpp-reference`), or the binary `SMW_BIN` names.
 
 `-ffp-contract=off` stops clang fusing `a*b+c` into FMA instructions, which Rust never does.
 

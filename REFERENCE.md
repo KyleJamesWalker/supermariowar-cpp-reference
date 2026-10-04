@@ -6,6 +6,7 @@ This is upstream [mmatyas/supermariowar](https://github.com/mmatyas/supermariowa
 
 - `master`: upstream, unmodified (remote `upstream`).
 - `harness-latest`: `harness` merged with upstream `5693918f`, the commit the Rust port's `upstream-sync` branch matches, plus the stored-settings fix to the level editor dump.
+- `harness-rle`: `harness-latest` plus the `SMW_NO_RLE` build option.
 - `harness`: upstream `a7f7e25`, the commit the Rust port was first translated from, plus two commits:
   - the game replay and state-dump harness (`tools/cpp-harness.patch` in the Rust repo);
   - the editor harness (`tools/editor-harness.patch`).
@@ -21,3 +22,5 @@ Every hook is a no-op unless its `SMW_*` environment variable is set, so a harne
 The Rust repo's `tools/run_ref.sh` runs this binary through `SMW_BIN` (default `~/work/smw-ref/build/smw`).
 
 `-ffp-contract=off` stops clang fusing `a*b+c` into FMA instructions, which Rust never does.
+
+`-DSMW_NO_RLE=ON` skips `SDL_SetSurfaceRLE` on sprites, fonts and skins (default `OFF`, which the Rust repo's goldens use). On sdl2-compat, RLE surfaces are re-encoded on every blit.

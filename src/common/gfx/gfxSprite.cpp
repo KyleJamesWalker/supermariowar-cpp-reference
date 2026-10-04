@@ -54,11 +54,13 @@ SdlSurfacePtr loadImage(
         throw std::format("Couldn't convert {} to the display's pixel format: {}", path_str, SDL_GetError());
     }
 
+#ifndef SMW_NO_RLE
     if (optimize) {
         if (SDL_SetSurfaceRLE(img.get(), 1) < 0) {
             throw std::format("Couldn't set RLE acceleration for {}: {}", path_str, SDL_GetError());
         }
     }
+#endif
 
     if (alpha) {
         if (SDL_SetSurfaceBlendMode(img.get(), SDL_BLENDMODE_BLEND) < 0) {

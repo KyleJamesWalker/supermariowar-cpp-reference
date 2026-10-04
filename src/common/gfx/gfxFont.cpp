@@ -77,8 +77,10 @@ gfxFont::gfxFont(const std::filesystem::path& path)
     if (!surf_opti)
         throw std::format("Couldn't convert {} to the display's pixel format: {}", path_str, SDL_GetError());
 
+#ifndef SMW_NO_RLE
     if (SDL_SetSurfaceRLE(surf_opti.get(), 1) < 0)
         throw std::format("Couldn't set RLE acceleration for {}: {}", path_str, SDL_GetError());
+#endif
 
     m_sprite = gfxSprite(std::move(surf_opti), std::nullopt);
     std::cout << "done" << std::endl;

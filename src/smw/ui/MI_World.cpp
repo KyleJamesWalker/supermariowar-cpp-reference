@@ -9,6 +9,7 @@
 #include "uimenu.h"
 #include "world.h"
 #include "WorldTourStop.h"
+#include "core-math/core_math.h"
 
 #include <cmath>
 
@@ -428,8 +429,8 @@ void MI_World::Draw()
     if (iState == -2 || iState >= 4) {
         for (short iStar = 0; iStar < 10; iStar++) {
             float dAngle = dTeleportStarAngle + (TWO_PI / 10.0f) * (float)iStar;
-            short iStarX = (short)(dTeleportStarRadius * cos(dAngle));
-            short iStarY = (short)(dTeleportStarRadius * sin(dAngle));
+            short iStarX = (short)(dTeleportStarRadius * cr_cosf(dAngle));
+            short iStarY = (short)(dTeleportStarRadius * cr_sinf(dAngle));
 
             rm->spr_teleportstar.draw(iStarX + iPlayerDrawPos.x + iMapOffsetX, iStarY + iPlayerDrawPos.y + iMapOffsetY, {iTeleportStarAnimationFrame, 0, 32, 32});
         }

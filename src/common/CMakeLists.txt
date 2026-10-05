@@ -72,6 +72,10 @@ add_library(CommonFiles STATIC
     Version.h
     WorldTourStop.cpp
     WorldTourStop.h
+    core-math/atan2f.c
+    core-math/core_math.h
+    core-math/cosf.c
+    core-math/sinf.c
     util/ContainerHelpers.h
     util/Grid.h
     util/DirIterator.cpp
@@ -81,6 +85,7 @@ add_library(CommonFiles STATIC
 )
 
 add_subdirectory(ui)
+set_source_files_properties(core-math/atan2f.c core-math/cosf.c core-math/sinf.c PROPERTIES COMPILE_OPTIONS "-ffp-contract=off")
 target_compile_features(CommonFiles PUBLIC cxx_std_20)
 
 if (SDL2_FORCE_GLES)

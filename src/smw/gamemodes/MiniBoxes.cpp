@@ -6,6 +6,7 @@
 #include "RandomNumberGenerator.h"
 #include "ResourceManager.h"
 #include "objects/moving/MO_Coin.h"
+#include "core-math/core_math.h"
 
 #include <cmath>
 
@@ -161,7 +162,7 @@ void CGM_Boxes_MiniGame::ReleaseCoin(CPlayer &player)
 
         float speed = 7.0f + (float)RANDOM_INT(9) / 2.0f;
         float angle = -(float)RANDOM_INT(314) / 100.0f;
-        Vec2f vel(speed * cos(angle), speed * sin(angle));
+        Vec2f vel(speed * cr_cosf(angle), speed * cr_sinf(angle));
 
         ifSoundOnPlay(rm->sfx_coin);
 

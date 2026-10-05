@@ -4,6 +4,7 @@
 #include "Game.h"
 #include "player.h"
 #include "ResourceManager.h"
+#include "core-math/core_math.h"
 
 #include <cmath>
 
@@ -21,8 +22,8 @@ OMO_StraightPathHazard::OMO_StraightPathHazard(gfxSprite* nspr, Vec2s pos, float
     dVel = vel;
     dAngle = angle;
 
-    velx = vel * cos(angle);
-    vely = vel * sin(angle);
+    velx = vel * cr_cosf(angle);
+    vely = vel * cr_sinf(angle);
 }
 
 void OMO_StraightPathHazard::update()

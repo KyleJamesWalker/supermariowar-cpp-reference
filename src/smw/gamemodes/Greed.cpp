@@ -7,6 +7,7 @@
 #include "ResourceManager.h"
 #include "Score.h"
 #include "objects/moving/MO_Coin.h"
+#include "core-math/core_math.h"
 
 #include <cmath>
 
@@ -117,7 +118,7 @@ PlayerKillType CGM_Greed::ReleaseCoins(CPlayer &player, KillStyle style)
     for (short k = 0; k < iDamage; k++) {
         float speed = 7.0f + ((float)RANDOM_INT(9)) / 2.0f;
         float angle = -((float)RANDOM_INT(314)) / 100.0f;
-        Vec2f vel(speed * cos(angle), speed * sin(angle));
+        Vec2f vel(speed * cr_cosf(angle), speed * cr_sinf(angle));
 
         objectcontainer[1].add(new MO_Coin(&rm->spr_coin, vel, pos, player.getColorID(), player.getTeamID(), 1, 30, false));
     }

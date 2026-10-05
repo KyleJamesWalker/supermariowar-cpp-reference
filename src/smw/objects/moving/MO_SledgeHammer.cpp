@@ -8,6 +8,7 @@
 #include "ResourceManager.h"
 #include "objects/moving/MO_Explosion.h"
 #include "objects/moving/MO_Hammer.h"
+#include "core-math/core_math.h"
 
 #include <cmath>
 
@@ -99,8 +100,8 @@ void MO_SledgeHammer::explode()
         for (short iHammer = 0; iHammer < 3; iHammer++) {
             float dAngle = (float)(RANDOM_INT(628)) / 100.0f;
             float dVel = (float)(RANDOM_INT(5)) / 2.0f + 3.0f;
-            float dVelX = dVel * cos(dAngle);
-            float dVelY = dVel * sin(dAngle);
+            float dVelX = dVel * cr_cosf(dAngle);
+            float dVelY = dVel * cr_sinf(dAngle);
             objectcontainer[2].add(new MO_Hammer(&rm->spr_hammer, {iCenterX, iCenterY}, 6, {dVelX, dVelY}, 5, playerID, teamID, iColorID, true));
         }
 

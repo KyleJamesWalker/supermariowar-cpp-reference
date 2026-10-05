@@ -9,6 +9,7 @@
 #include "ui/MI_Button.h"
 #include "ui/MI_Image.h"
 #include "uimenu.h"
+#include "core-math/core_math.h"
 
 #include <cmath>
 
@@ -22,8 +23,8 @@ MI_BonusWheel::MI_BonusWheel(short x, short y)
     for (short iImage = 0; iImage < NUMBONUSITEMSONWHEEL; iImage++) {
         dSelectionSector[iImage] = (float)iImage * TWO_PI / (float)(NUMBONUSITEMSONWHEEL);
 
-        short iPowerupX = x + 160 + (short)(110.0f * cos(dSelectionSector[iImage]));
-        short iPowerupY = y + 208 + (short)(110.0f * sin(dSelectionSector[iImage]));
+        short iPowerupX = x + 160 + (short)(110.0f * cr_cosf(dSelectionSector[iImage]));
+        short iPowerupY = y + 208 + (short)(110.0f * cr_sinf(dSelectionSector[iImage]));
 
         miBonusImages[iImage] = new MI_Image(&rm->spr_storedpoweruplarge, iPowerupX, iPowerupY, 0, 0, 32, 32, 1, 1, 0);
     }
@@ -89,8 +90,8 @@ void MI_BonusWheel::Update()
         if (--iDisplayPowerupTimer <= 0) {
             iDisplayPowerupTimer = 20;
 
-            short iPoofX = m_pos.x + 152 + (short)(110.0f * cos(dSelectionSector[iDisplayPowerupIndex]));
-            short iPoofY = m_pos.y + 200 + (short)(110.0f * sin(dSelectionSector[iDisplayPowerupIndex]));
+            short iPoofX = m_pos.x + 152 + (short)(110.0f * cr_cosf(dSelectionSector[iDisplayPowerupIndex]));
+            short iPoofY = m_pos.y + 200 + (short)(110.0f * cr_sinf(dSelectionSector[iDisplayPowerupIndex]));
 
             m_parentMenu->AddEyeCandy<EC_SingleAnimation>(&rm->spr_poof, iPoofX, iPoofY, 4, 5);
 
@@ -192,8 +193,8 @@ void MI_BonusWheel::Draw()
 
     rm->spr_tournament_powerup_splash.draw(m_pos.x, m_pos.y);
 
-    short iSelectorX = m_pos.x + 144 + (short)(110.0f * cos(dSelectionAngle));
-    short iSelectorY = m_pos.y + 190 + (short)(110.0f * sin(dSelectionAngle));
+    short iSelectorX = m_pos.x + 144 + (short)(110.0f * cr_cosf(dSelectionAngle));
+    short iSelectorY = m_pos.y + 190 + (short)(110.0f * cr_sinf(dSelectionAngle));
 
     if (iState > 0)
         rm->spr_powerupselector.draw(iSelectorX, iSelectorY, {iSelectorAnimation * 64, 0, 64, 64});

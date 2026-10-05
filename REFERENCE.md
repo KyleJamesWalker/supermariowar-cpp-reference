@@ -10,7 +10,7 @@ This is upstream [mmatyas/supermariowar](https://github.com/mmatyas/supermariowa
 
 To sync a newer upstream, the Rust repo's `tools/upstream_sync.sh` merges it into a `harness-<sha>` branch from `harness-latest`; that lands back here as a PR once the port matches.
 
-Every hook is a no-op unless its `SMW_*` environment variable is set, so a harness build plays like upstream. The Rust repo's `REPLAY.md` and `EDITOR_REPLAY.md` are the spec.
+Every hook is a no-op unless its `SMW_*` environment variable is set, so a harness build plays like upstream. The exception is trigonometry: the game's `sinf`, `cosf` and `atan2f` come from [CORE-MATH](https://core-math.gitlabpages.inria.fr/) (`src/common/core-math/`, correctly rounded, MIT), which the Rust port also uses, so every platform computes the same game state. The platform libms (macOS, glibc, Emscripten's musl) round differently in the last bit. The Rust repo's `REPLAY.md` and `EDITOR_REPLAY.md` are the spec.
 
 ## Build
 

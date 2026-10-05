@@ -10,6 +10,7 @@
 #include "WorldTourStop.h"
 #include "ui/MI_Image.h"
 #include "ui/MI_ScoreText.h"
+#include "core-math/core_math.h"
 
 #include <cmath>
 
@@ -163,8 +164,8 @@ void MI_TournamentScoreboard::Update()
 
                     for (short iBlock = 0; iBlock < 28; iBlock++) {
                         float dVel = 7.0f + ((iBlock % 2) * 5.0f);
-                        float dVelX = dVel * cos(dAngle);
-                        float dVelY = dVel * sin(dAngle);
+                        float dVelX = dVel * cr_cosf(dAngle);
+                        float dVelY = dVel * cr_sinf(dAngle);
 
                         short iRandomColor = (short)RANDOM_INT(iTeamCounts[iTournamentWinner]);
                         m_parentMenu->AddEyeCandy<EC_FallingObject>(&rm->spr_bonus, iRandX, iRandY, dVelX, dVelY, 4, 2, 0, game_values.colorids[iTeamIDs[iTournamentWinner][iRandomColor]] << 4, 16, 16);

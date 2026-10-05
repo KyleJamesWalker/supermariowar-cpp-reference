@@ -12,6 +12,7 @@
 #include "ResourceManager.h"
 #include "objects/carriable/CO_Shell.h"
 #include "objects/carriable/CO_ThrowBox.h"
+#include "core-math/core_math.h"
 
 #include <cmath>
 
@@ -69,8 +70,8 @@ void MO_WalkingEnemy::draw()
         float displayangle = spawnangle;
 
         for (short k = 0; k < numeyecandy; k++) {
-            short spawnX = ix + (collisionWidth >> 1) - 8 + (short)(spawnradius * cos(displayangle));
-            short spawnY = iy + (collisionHeight >> 1) - 8 + (short)(spawnradius * sin(displayangle));
+            short spawnX = ix + (collisionWidth >> 1) - 8 + (short)(spawnradius * cr_cosf(displayangle));
+            short spawnY = iy + (collisionHeight >> 1) - 8 + (short)(spawnradius * cr_sinf(displayangle));
 
             displayangle += addangle;
 

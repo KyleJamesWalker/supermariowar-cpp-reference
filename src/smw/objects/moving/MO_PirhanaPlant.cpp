@@ -8,6 +8,7 @@
 #include "ResourceManager.h"
 #include "objects/carriable/CO_ThrowBox.h"
 #include "objects/overmap/WO_StraightPathHazard.h"
+#include "core-math/core_math.h"
 
 #include <cmath>
 
@@ -166,7 +167,7 @@ void MO_PirhanaPlant::update()
                 }
             }
 
-            float dAngle = (float)atan2((double)iDiffX, (double)iDiffY);
+            float dAngle = cr_atan2f((float)iDiffX, (float)iDiffY);
 
             if (dAngle >= 0.0f && dAngle < HALF_PI)
                 iFrame = 0;

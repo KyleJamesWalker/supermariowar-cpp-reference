@@ -2,6 +2,7 @@
 
 #include "player.h"
 #include "ResourceManager.h"
+#include "core-math/core_math.h"
 
 #include <cmath>
 
@@ -49,6 +50,6 @@ bool OMO_OrbitHazard::collide(CPlayer* player)
 
 void OMO_OrbitHazard::CalculatePosition()
 {
-    setXf(dCenter.x + dRadius * cos(dAngle) - (float)iw / 2.0f);
-    setYf(dCenter.y + dRadius * sin(dAngle) - (float)ih / 2.0f);
+    setXf(dCenter.x + dRadius * cr_cosf(dAngle) - (float)iw / 2.0f);
+    setYf(dCenter.y + dRadius * cr_sinf(dAngle) - (float)ih / 2.0f);
 }

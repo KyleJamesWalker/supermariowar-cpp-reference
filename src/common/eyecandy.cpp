@@ -6,6 +6,7 @@
 #include "map.h"
 #include "RandomNumberGenerator.h"
 #include "ResourceManager.h"
+#include "core-math/core_math.h"
 
 #include <algorithm>
 #include <cmath>
@@ -718,8 +719,8 @@ void EC_SwirlingAward::update()
     radius += 3.0f;
 
     if (++timer > ttl) {
-        short awardx = x + (short)(radius * cos(angle)) + (w >> 1) - 16;
-        short awardy = y + (short)(radius * sin(angle)) + (h >> 1) - 16;
+        short awardx = x + (short)(radius * cr_cosf(angle)) + (w >> 1) - 16;
+        short awardy = y + (short)(radius * cr_sinf(angle)) + (h >> 1) - 16;
         eyecandy[2].emplace<EC_SingleAnimation>(&rm->spr_fireballexplosion, awardx, awardy, 3, 8);
 
         dead = true;
@@ -737,8 +738,8 @@ void EC_SwirlingAward::update()
 
 void EC_SwirlingAward::draw() const
 {
-    short awardx = x + (short)(radius * cos(angle));
-    short awardy = y + (short)(radius * sin(angle));
+    short awardx = x + (short)(radius * cr_cosf(angle));
+    short awardy = y + (short)(radius * cr_sinf(angle));
 
     spr->draw(awardx, awardy, {iAnimationFrame, iSrcY, w, h});
 }
@@ -893,8 +894,8 @@ void EC_SoulsAward::update()
         float startangle = -HALF_PI;
 
         float angle = (float)(RANDOM_INT(21) - 10) * addangle + startangle;
-        float velx = speed * cos(angle);
-        float vely = speed * sin(angle);
+        float velx = speed * cr_cosf(angle);
+        float vely = speed * cr_sinf(angle);
 
         eyecandy[2].emplace<EC_RocketAward>(&rm->spr_awardsouls, x - 8, y - 8, velx, vely, ttl, id[count], 0, 16, 16);
 

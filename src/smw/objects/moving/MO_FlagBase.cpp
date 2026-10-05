@@ -8,6 +8,7 @@
 #include "RandomNumberGenerator.h"
 #include "ResourceManager.h"
 #include "objects/carriable/CO_Flag.h"
+#include "core-math/core_math.h"
 
 #include <cmath>
 
@@ -37,8 +38,8 @@ MO_FlagBase::MO_FlagBase(gfxSprite* nspr, short iTeamID, short iColorID)
     anglechange = (float)(RANDOM_INT(100) * 0.0002f);
     anglechangetimer = (short)(RANDOM_INT(50) + 100);
 
-    velx = sin(angle);
-    vely = cos(angle);
+    velx = cr_sinf(angle);
+    vely = cr_cosf(angle);
 
     homeflag = NULL;
 
@@ -78,8 +79,8 @@ void MO_FlagBase::update()
 
         angle += anglechange;
 
-        velx = speed * sin(angle);
-        vely = speed * cos(angle);
+        velx = speed * cr_sinf(angle);
+        vely = speed * cr_cosf(angle);
 
         setXf(fx + velx);
         setYf(fy + vely);
@@ -89,13 +90,13 @@ void MO_FlagBase::update()
             ix = 0;
             fx = (float)ix;
 
-            angle = atan2(velx, vely);
+            angle = cr_atan2f(velx, vely);
         } else if (ix + collisionWidth >= App::screenWidth) {
             velx = -velx;
             ix = App::screenWidth - 1 - collisionWidth;
             fx = (float)ix;
 
-            angle = atan2(velx, vely);
+            angle = cr_atan2f(velx, vely);
         }
 
         if (iy < 0) {
@@ -103,13 +104,13 @@ void MO_FlagBase::update()
             iy = 0;
             fy = (float)iy;
 
-            angle = atan2(velx, vely);
+            angle = cr_atan2f(velx, vely);
         } else if (iy + collisionHeight >= App::screenHeight) {
             vely = -vely;
             iy = App::screenHeight - 1 - collisionHeight;
             fy = (float)iy;
 
-            angle = atan2(velx, vely);
+            angle = cr_atan2f(velx, vely);
         }
     }
 

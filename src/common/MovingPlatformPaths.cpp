@@ -5,6 +5,7 @@
 #include "movingplatform.h"
 #include "ObjectBase.h"
 #include "player.h"
+#include "core-math/core_math.h"
 
 #include <cmath>
 
@@ -15,8 +16,8 @@ namespace {
 Vec2f calcVelocity(float speed, float angle)
 {
     Vec2f vel {
-        speed * cos(angle),
-        speed * sin(angle),
+        speed * cr_cosf(angle),
+        speed * cr_sinf(angle),
     };
 
     // Fix rounding errors
@@ -78,7 +79,7 @@ StraightPath::StraightPath(float speed, Vec2f startPos, Vec2f endPos, bool previ
         m_angle = (width > 0) ? 0.f : PI;
         length = ::fabs(width);
     } else {
-        m_angle = atan2(height, width);
+        m_angle = cr_atan2f(height, width);
         length = ::sqrt(height * height + width * width);
     }
 
@@ -147,7 +148,7 @@ StraightPathContinuous::StraightPathContinuous(float speed, Vec2f startPos, floa
         m_angle = (width > 0) ? 0.f : PI;
         length = ::fabs(width);
     } else {
-        m_angle = atan2(height, width);
+        m_angle = cr_atan2f(height, width);
         length = ::sqrt(height * height + width * width);
     }
 
@@ -250,8 +251,8 @@ bool EllipsePath::Move(short type)
 
 void EllipsePath::SetPosition(short type)
 {
-    m_currentPos[type].x = m_radius.x * cos(m_angle[type]) + m_startPos.x;
-    m_currentPos[type].y = m_radius.y * sin(m_angle[type]) + m_startPos.y;
+    m_currentPos[type].x = m_radius.x * cr_cosf(m_angle[type]) + m_startPos.x;
+    m_currentPos[type].y = m_radius.y * cr_sinf(m_angle[type]) + m_startPos.y;
 }
 
 void EllipsePath::Reset()

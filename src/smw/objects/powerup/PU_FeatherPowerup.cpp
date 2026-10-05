@@ -5,6 +5,7 @@
 #include "GameValues.h"
 #include "player.h"
 #include "ResourceManager.h"
+#include "core-math/core_math.h"
 
 #include <cmath>
 
@@ -76,8 +77,8 @@ void PU_FeatherPowerup::update()
 
         dFloatCenterY += 1.0f;
 
-        setXf(64.0f * cos(dFloatAngle) + dFloatCenterX);
-        setYf(64.0f * sin(dFloatAngle) + dFloatCenterY);
+        setXf(64.0f * cr_cosf(dFloatAngle) + dFloatCenterX);
+        setYf(64.0f * cr_sinf(dFloatAngle) + dFloatCenterY);
 
         if (fy >= App::screenHeight)
             dead = true;

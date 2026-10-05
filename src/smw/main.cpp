@@ -56,6 +56,7 @@
 #include "FPSLimiter.h"
 #include "GSSplashScreen.h"
 #include "Harness.h"
+#include "core-math/core_math.h"
 
 #include <ctime>
 #include <cmath>
@@ -266,20 +267,20 @@ void init_spawnlocations()
     float spawnangle = 0.0f;
 
     for (short i = 0; i < 25; i++) {
-        g_iSwirlSpawnLocations[0][0][i] = (short)(spawnradius * cos(spawnangle));
-        g_iSwirlSpawnLocations[0][1][i] = (short)(spawnradius * sin(spawnangle));
+        g_iSwirlSpawnLocations[0][0][i] = (short)(spawnradius * cr_cosf(spawnangle));
+        g_iSwirlSpawnLocations[0][1][i] = (short)(spawnradius * cr_sinf(spawnangle));
 
         float angle = spawnangle + HALF_PI;
-        g_iSwirlSpawnLocations[1][0][i] = (short)(spawnradius * cos(angle));
-        g_iSwirlSpawnLocations[1][1][i] = (short)(spawnradius * sin(angle));
+        g_iSwirlSpawnLocations[1][0][i] = (short)(spawnradius * cr_cosf(angle));
+        g_iSwirlSpawnLocations[1][1][i] = (short)(spawnradius * cr_sinf(angle));
 
         angle = spawnangle + PI;
-        g_iSwirlSpawnLocations[2][0][i] = (short)(spawnradius * cos(angle));
-        g_iSwirlSpawnLocations[2][1][i] = (short)(spawnradius * sin(angle));
+        g_iSwirlSpawnLocations[2][0][i] = (short)(spawnradius * cr_cosf(angle));
+        g_iSwirlSpawnLocations[2][1][i] = (short)(spawnradius * cr_sinf(angle));
 
         angle = spawnangle + THREE_HALF_PI;
-        g_iSwirlSpawnLocations[3][0][i] = (short)(spawnradius * cos(angle));
-        g_iSwirlSpawnLocations[3][1][i] = (short)(spawnradius * sin(angle));
+        g_iSwirlSpawnLocations[3][0][i] = (short)(spawnradius * cr_cosf(angle));
+        g_iSwirlSpawnLocations[3][1][i] = (short)(spawnradius * cr_sinf(angle));
 
         spawnradius -= 4.0f;
         spawnangle += 0.1f;

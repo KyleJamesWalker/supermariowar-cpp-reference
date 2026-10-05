@@ -59,6 +59,7 @@
 #include "objects/powerup/PU_StarPowerup.h"
 #include "objects/powerup/PU_Tanooki.h"
 #include "objects/walkingenemy/WalkingEnemy.h"
+#include "core-math/core_math.h"
 
 #include <algorithm>
 #include <cmath>
@@ -779,11 +780,11 @@ void GameplayState::spinScreen()
         spinangle += TWO_PI;
     }
 
-    float shakey = spinspeed * App::screenWidth * sin(spinangle);
+    float shakey = spinspeed * App::screenWidth * cr_sinf(spinangle);
     if (shakey < 0.0f)
         shakey -= 1.0f;
 
-    x_shake = (short)(spinspeed * App::screenWidth * cos(spinangle));
+    x_shake = (short)(spinspeed * App::screenWidth * cr_cosf(spinangle));
     y_shake = (short)(shakey);
 }
 

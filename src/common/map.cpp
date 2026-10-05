@@ -15,6 +15,7 @@
 #include "map/MapReader.h"
 
 #include "SDL_image.h"
+#include "core-math/core_math.h"
 
 #include <cmath>
 #include <iostream>
@@ -129,8 +130,8 @@ void DrawMapHazard(const MapHazard& hazard, short iSize, bool fDrawCenter, SDL_S
         float dRadius = (float)((hazard.iparam[0] - 1) * 24) / (float)(1 << iSize) + (iPlatformPathDotSize[iSize] >> 1);
         float dAngle = hazard.dparam[1];
         for (short iDot = 0; iDot < iNumDots; iDot++) {
-            rDotDst.x = (short)(dRadius * cos(dAngle)) + rPathDst.x + (iTileSize >> 1) - (iPlatformPathDotSize[iSize] >> 1);
-            rDotDst.y = (short)(dRadius * sin(dAngle)) + rPathDst.y + (iTileSize >> 1) - (iPlatformPathDotSize[iSize] >> 1);
+            rDotDst.x = (short)(dRadius * cr_cosf(dAngle)) + rPathDst.x + (iTileSize >> 1) - (iPlatformPathDotSize[iSize] >> 1);
+            rDotDst.y = (short)(dRadius * cr_sinf(dAngle)) + rPathDst.y + (iTileSize >> 1) - (iPlatformPathDotSize[iSize] >> 1);
             rDotDst.h = rDotDst.w = iPlatformPathDotSize[iSize];
 
             rm->spr_platformpath.draw(rDotDst.x, rDotDst.y, {rDotSrc.x, rDotSrc.y, rDotDst.w, rDotDst.h});
@@ -139,8 +140,8 @@ void DrawMapHazard(const MapHazard& hazard, short iSize, bool fDrawCenter, SDL_S
 
         //Draw the fireball string
         for (short iFireball = 0; iFireball < hazard.iparam[0]; iFireball++) {
-            short x = (hazard.ix << (iSizeShift - 1)) + (short)((float)(iFireball * (24 >> iSize)) * cos(hazard.dparam[1])) + (iTileSize >> 1) - (iFireballHazardSize[iSize] >> 1);
-            short y = (hazard.iy << (iSizeShift - 1)) + (short)((float)(iFireball * (24 >> iSize)) * sin(hazard.dparam[1])) + (iTileSize >> 1) - (iFireballHazardSize[iSize] >> 1);
+            short x = (hazard.ix << (iSizeShift - 1)) + (short)((float)(iFireball * (24 >> iSize)) * cr_cosf(hazard.dparam[1])) + (iTileSize >> 1) - (iFireballHazardSize[iSize] >> 1);
+            short y = (hazard.iy << (iSizeShift - 1)) + (short)((float)(iFireball * (24 >> iSize)) * cr_sinf(hazard.dparam[1])) + (iTileSize >> 1) - (iFireballHazardSize[iSize] >> 1);
 
             rm->spr_hazard_fireball[iSize].draw(x, y, {0, 0, iFireballHazardSize[iSize], iFireballHazardSize[iSize]});
         }
@@ -149,8 +150,8 @@ void DrawMapHazard(const MapHazard& hazard, short iSize, bool fDrawCenter, SDL_S
         float dRadius = (hazard.dparam[2] + (iTileSize >> 1) - (iPlatformPathDotSize[iSize] >> 1)) / (float)(1 << iSize);
         float dAngle = hazard.dparam[1];
         for (short iDot = 0; iDot < iNumDots; iDot++) {
-            rDotDst.x = (short)(dRadius * cos(dAngle)) + rPathDst.x + (iTileSize >> 1) - (iPlatformPathDotSize[iSize] >> 1);
-            rDotDst.y = (short)(dRadius * sin(dAngle)) + rPathDst.y + (iTileSize >> 1) - (iPlatformPathDotSize[iSize] >> 1);
+            rDotDst.x = (short)(dRadius * cr_cosf(dAngle)) + rPathDst.x + (iTileSize >> 1) - (iPlatformPathDotSize[iSize] >> 1);
+            rDotDst.y = (short)(dRadius * cr_sinf(dAngle)) + rPathDst.y + (iTileSize >> 1) - (iPlatformPathDotSize[iSize] >> 1);
             rDotDst.h = rDotDst.w = iPlatformPathDotSize[iSize];
 
             rm->spr_platformpath.draw(rDotDst.x, rDotDst.y, {rDotSrc.x, rDotSrc.y, rDotDst.w, rDotDst.h});
@@ -162,8 +163,8 @@ void DrawMapHazard(const MapHazard& hazard, short iSize, bool fDrawCenter, SDL_S
         dAngle = hazard.dparam[1];
         dRadius = hazard.dparam[2] / (float)(1 << iSize);
         for (short iRotodisc = 0; iRotodisc < hazard.iparam[0]; iRotodisc++) {
-            short x = rPathDst.x + (short)(dRadius * cos(dAngle));
-            short y = rPathDst.y + (short)(dRadius * sin(dAngle));
+            short x = rPathDst.x + (short)(dRadius * cr_cosf(dAngle));
+            short y = rPathDst.y + (short)(dRadius * cr_sinf(dAngle));
 
             rm->spr_hazard_rotodisc[iSize].draw(x, y, {0, 0, iTileSize, iTileSize});
 
@@ -247,8 +248,8 @@ void DrawPlatform(
                 int iDstY = 0;
 
                 if (pathtype == PlatformPathType::Ellipse) {
-                    iDstX = iStartX + (iPlatformX << iSizeShift) + (short)(fRadiusX * cos(angle)) - (iPlatformWidth << (iSizeShift - 1));
-                    iDstY = iStartY + (iPlatformY << iSizeShift) + (short)(fRadiusY * sin(angle)) - (iPlatformHeight << (iSizeShift - 1));
+                    iDstX = iStartX + (iPlatformX << iSizeShift) + (short)(fRadiusX * cr_cosf(angle)) - (iPlatformWidth << (iSizeShift - 1));
+                    iDstY = iStartY + (iPlatformY << iSizeShift) + (short)(fRadiusY * cr_sinf(angle)) - (iPlatformHeight << (iSizeShift - 1));
                 } else {
                     iDstX = iStartX + (iPlatformX << iSizeShift) - (iPlatformWidth << (iSizeShift - 1));
                     iDstY = iStartY + (iPlatformY << iSizeShift) - (iPlatformHeight << (iSizeShift - 1));
@@ -346,8 +347,8 @@ void DrawPlatform(
             }
         }
 
-        float dIncrementX = (float)iTileSize * cos(angle);
-        float dIncrementY = (float)iTileSize * sin(angle);
+        float dIncrementX = (float)iTileSize * cr_cosf(angle);
+        float dIncrementY = (float)iTileSize * cr_sinf(angle);
 
         float dX = (float)(iStartX) - (float)(iPlatformPathDotSize[iSize] >> 1);
         float dY = (float)(iStartY) - (float)(iPlatformPathDotSize[iSize] >> 1);
@@ -386,8 +387,8 @@ void DrawPlatform(
     } else if (pathtype == PlatformPathType::Ellipse) {
         //Calculate the starting position
         if (fDrawShadow) {
-            short iEllipseStartX = (short)(fRadiusX * cos(angle)) - (iPlatformWidth << (iSizeShift - 1)) + iStartX;
-            short iEllipseStartY = (short)(fRadiusY * sin(angle)) - (iPlatformHeight << (iSizeShift - 1)) + iStartY;
+            short iEllipseStartX = (short)(fRadiusX * cr_cosf(angle)) - (iPlatformWidth << (iSizeShift - 1)) + iStartX;
+            short iEllipseStartY = (short)(fRadiusY * cr_sinf(angle)) - (iPlatformHeight << (iSizeShift - 1)) + iStartY;
 
             for (short iCol = 0; iCol < iPlatformWidth; iCol++) {
                 for (short iRow = 0; iRow < iPlatformHeight; iRow++) {
@@ -399,8 +400,8 @@ void DrawPlatform(
 
         float fAngle = angle;
         for (short iSpot = 0; iSpot < 32; iSpot++) {
-            short iX = (short)(fRadiusX * cos(fAngle)) - (iPlatformPathDotSize[iSize] >> 1) + iStartX;
-            short iY = (short)(fRadiusY * sin(fAngle)) - (iPlatformPathDotSize[iSize] >> 1) + iStartY;
+            short iX = (short)(fRadiusX * cr_cosf(fAngle)) - (iPlatformPathDotSize[iSize] >> 1) + iStartX;
+            short iY = (short)(fRadiusY * cr_sinf(fAngle)) - (iPlatformPathDotSize[iSize] >> 1) + iStartY;
 
             rPathDst = {iX, iY, iPlatformPathDotSize[iSize], iPlatformPathDotSize[iSize]};
             rm->spr_platformpath.draw(rPathSrc, dst, rPathDst);

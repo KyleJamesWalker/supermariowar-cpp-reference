@@ -23,6 +23,7 @@
 #include "objects/moving/MO_Hammer.h"
 #include "objects/moving/MO_IceBlast.h"
 #include "objects/moving/MO_Podobo.h"
+#include "core-math/core_math.h"
 
 #include <cassert>
 #include <cmath>
@@ -1984,8 +1985,8 @@ void CPlayer::draw_powerupRing()
         float displayangle = powerupangle;
 
         for (short k = 0; k < numeyecandy; k++) {
-            short powerupX = ix + HALFPW - 8 + (short)(powerupradius * cos(displayangle));
-            short powerupY = iy + HALFPH - 8 + (short)(powerupradius * sin(displayangle));
+            short powerupX = ix + HALFPW - 8 + (short)(powerupradius * cr_cosf(displayangle));
+            short powerupY = iy + HALFPH - 8 + (short)(powerupradius * cr_sinf(displayangle));
 
             displayangle += addangle;
 

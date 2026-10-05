@@ -1,6 +1,7 @@
 #include "MI_Image.h"
 
 #include "gfx.h"
+#include "core-math/core_math.h"
 
 #include <cmath>
 
@@ -88,8 +89,8 @@ void MI_Image::Draw()
     short iYOffset = 0;
 
     if (fSwirl) {
-        iXOffset = (short)(dSwirlRadius * cos(dSwirlAngle));
-        iYOffset = (short)(dSwirlRadius * sin(dSwirlAngle));
+        iXOffset = (short)(dSwirlRadius * cr_cosf(dSwirlAngle));
+        iYOffset = (short)(dSwirlRadius * cr_sinf(dSwirlAngle));
     }
 
     const SDL_Rect srcRect {iXFrame, iYFrame, iw, ih};

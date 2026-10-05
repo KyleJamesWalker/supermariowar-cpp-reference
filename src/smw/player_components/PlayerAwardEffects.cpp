@@ -5,6 +5,7 @@
 #include "objectgame.h"
 #include "player.h"
 #include "ResourceManager.h"
+#include "core-math/core_math.h"
 
 #include <cmath>
 
@@ -51,8 +52,8 @@ void PlayerAwardEffects::drawRingAward(CPlayer& player)
 
     for (short k = 0; k < numawards; k++) {
         float angle = (float)k * addangle + awardangle;
-        short awardx = xoffset + (short)(30.0f * cos(angle));
-        short awardy = yoffset + (short)(30.0f * sin(angle));
+        short awardx = xoffset + (short)(30.0f * cr_cosf(angle));
+        short awardy = yoffset + (short)(30.0f * cr_sinf(angle));
 
         if (player.iswarping())
             rm->spr_award.draw(awardx, awardy, {awards[k] * 16, 0, 16, 16}, static_cast<ClipEdge>((short)player.state % 4), player.GetWarpPlane());
@@ -73,8 +74,8 @@ void PlayerAwardEffects::addExploding(CPlayer& player)
 
     for (short k = 0; k < numawards; k++) {
         float angle = (float)k * addangle + awardangle;
-        float cosangle = cos(angle);
-        float sinangle = sin(angle);
+        float cosangle = cr_cosf(angle);
+        float sinangle = cr_sinf(angle);
 
         short awardx = player.centerX() - 8 + (short)(30.0f * cosangle);
         short awardy = player.centerY() - 8 + (short)(30.0f * sinangle);
@@ -120,8 +121,8 @@ void PlayerAwardEffects::addRocket(CPlayer& player)
 
     for (short k = 0; k < numawards; k++) {
         float angle = (float)k * addangle + startangle;
-        float awardvelx = 9.0f * cos(angle);
-        float awardvely = 9.0f * sin(angle);
+        float awardvelx = 9.0f * cr_cosf(angle);
+        float awardvely = 9.0f * cr_sinf(angle);
 
         if (numawards == MAXAWARDS)
             eyecandy[2].emplace<EC_RocketAward>(&rm->spr_awardkillsinrow, player.centerX() - 8, player.centerY() - 8, awardvelx, awardvely, 80, 10, player.getColorID(), 16, 16, 4, 4);
@@ -250,8 +251,8 @@ void PlayerAwardEffects::addKillsInRowInAirAward(CPlayer& player)
     float angle = 0.0f;
     for (short k = 0; k < 15; k++) {
         float vel = 7.0f + ((k % 2) * 5.0f);
-        float awardvelx = vel * cos(angle);
-        float awardvely = vel * sin(angle);
+        float awardvelx = vel * cr_cosf(angle);
+        float awardvely = vel * cr_sinf(angle);
 
         eyecandy[2].emplace<EC_FallingObject>(&rm->spr_bonus,
             player.centerX() - 8,

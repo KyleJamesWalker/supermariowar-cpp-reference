@@ -10,7 +10,7 @@ project(smw
 	VERSION 2.0.0
 	DESCRIPTION "A fan-made multiplayer Super Mario Bros. style deathmatch game"
 	HOMEPAGE_URL "https://github.com/mmatyas/supermariowar"
-	LANGUAGES CXX
+	LANGUAGES C CXX
 )
 
 #

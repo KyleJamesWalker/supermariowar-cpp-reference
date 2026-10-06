@@ -86,6 +86,7 @@ jobs:
           python3 "$RUST/tools/apfs_order.py" "$RUST/data" "$CARD/data"
           sudo mount --bind "$CARD/data" "$RUST/data"
           echo "TMPDIR=$CARD/tmp" >> "$GITHUB_ENV"
+          echo "SDL_RENDER_DRIVER=software" >> "$GITHUB_ENV"
 
       - name: Game replays vs the macOS goldens
         env:

@@ -1,0 +1,79 @@
+diff --git a/src/common/map/MapReader18xx.cpp b/src/common/map/MapReader18xx.cpp
+index f13c66c7..4b3dedde 100644
+--- a/src/common/map/MapReader18xx.cpp
++++ b/src/common/map/MapReader18xx.cpp
+@@ -74,6 +74,13 @@ void MapReader1800::read_tileset(BinaryFile& mapfile)
+     tilesetwidths = new short[iMaxTilesetID + 1];
+     tilesetheights = new short[iMaxTilesetID + 1];
+ 
++    //IDs missing from the table are treated as unknown tilesets
++    for (short iID = 0; iID <= iMaxTilesetID; iID++) {
++        translationid[iID] = TILESETUNKNOWN;
++        tilesetwidths[iID] = 1;
++        tilesetheights[iID] = 1;
++    }
++
+     for (short iTileset = 0; iTileset < iNumTilesets; iTileset++) {
+         short iID = translation[iTileset].iID;
+         translationid[iID] = g_tilesetmanager->indexFromName(translation[iTileset].szName);
+diff --git a/src/common_netplay/ProtocolPackages.h b/src/common_netplay/ProtocolPackages.h
+index 619c3605..21602cf0 100644
+--- a/src/common_netplay/ProtocolPackages.h
++++ b/src/common_netplay/ProtocolPackages.h
+@@ -147,7 +147,7 @@ struct NewRoom : MessageHeader {
+         assert(strlen(name) > 2);
+ 
+         strncpy(this->name, name, NET_MAX_ROOM_NAME_LENGTH);
+-        this->name[NET_MAX_PLAYER_NAME_LENGTH - 1] = '\0';
++        this->name[NET_MAX_ROOM_NAME_LENGTH - 1] = '\0';
+ 
+         strncpy(this->password, password, NET_MAX_ROOM_PASSWORD_LENGTH);
+         this->password[NET_MAX_ROOM_PASSWORD_LENGTH - 1] = '\0';
+diff --git a/src/smw/ai.cpp b/src/smw/ai.cpp
+index e38cd5e1..0bea80a2 100644
+--- a/src/smw/ai.cpp
++++ b/src/smw/ai.cpp
+@@ -84,6 +84,8 @@ extern CGameValues game_values;
+ 
+ CPlayerAI::CPlayerAI()
+ {
++    iFallDanger = 0;
++
+     currentAttentionObject.iID = -1;
+     currentAttentionObject.iType = 0;
+     currentAttentionObject.iTimer = 0;
+diff --git a/src/smw/objects/overmap/WO_RaceGoal.cpp b/src/smw/objects/overmap/WO_RaceGoal.cpp
+index 50318f64..4fabaabb 100644
+--- a/src/smw/objects/overmap/WO_RaceGoal.cpp
++++ b/src/smw/objects/overmap/WO_RaceGoal.cpp
+@@ -48,11 +48,11 @@ OMO_RaceGoal::OMO_RaceGoal(gfxSprite* nspr, short id)
+     velx = cr_sinf(angle);
+     vely = cr_cosf(angle);
+ 
+-    placeRaceGoal();
+-
+     speed = (float)game_values.gamemodesettings.race.speed / 4.0f;
+     quantity = game_values.gamemodesettings.race.quantity;
+     isfinishline = goalID == quantity - 1;
++
++    placeRaceGoal();
+ }
+ 
+ bool OMO_RaceGoal::collide(CPlayer* player)
+diff --git a/src/smw/world.h b/src/smw/world.h
+index c3c5d47c..144c80ac 100644
+--- a/src/smw/world.h
++++ b/src/smw/world.h
+@@ -216,10 +216,10 @@ private:
+     std::vector<WorldVehicle> vehicles;
+     std::vector<WorldWarp> warps;
+ 
+-    short iNumInitialBonuses;
++    short iNumInitialBonuses = 0;
+     short iInitialBonuses[32];
+ 
+-    WorldMusicCategory iMusicCategory;
++    WorldMusicCategory iMusicCategory {};
+ 
+     short iTileSize;
+     short iTileSizeShift;

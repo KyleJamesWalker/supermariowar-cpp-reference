@@ -1,0 +1,175 @@
+name: Investigate x86 divergence
+on:
+  workflow_dispatch:
+  push:
+    branches: [investigate/x86-divergence, investigate/pr2-c7056790]
+    paths: ['.github/workflows/investigate-x86.yml', 'investigate/**']
+
+env:
+  RUST_REPO: KyleJamesWalker/supermariowar-rust
+  JOBS: '4'
+  CARD: /mnt/sdcard
+
+jobs:
+  replay:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-x86_64, runner: ubuntu-24.04 }
+          - { name: linux-arm64, runner: ubuntu-24.04-arm }
+          - { name: macos-arm64, runner: macos-15 }
+          - { name: linux-x86_64-pr2, runner: ubuntu-24.04, patch: pr2-all7 }
+          - { name: linux-arm64-pr2, runner: ubuntu-24.04-arm, patch: pr2-all7 }
+          - { name: macos-arm64-pr2, runner: macos-15, patch: pr2-all7 }
+          - { name: linux-x86_64-pr2-no-netid, runner: ubuntu-24.04, patch: pr2-no-netid }
+          - { name: linux-arm64-pr2-no-netid, runner: ubuntu-24.04-arm, patch: pr2-no-netid }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    env:
+      REF: ${{ github.workspace }}/ref
+      RUST: ${{ github.workspace }}/rust
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: ref
+      - uses: actions/checkout@v5
+        with:
+          repository: ${{ env.RUST_REPO }}
+          path: rust
+          submodules: recursive
+
+      - name: Dependencies
+        run: |
+          if [[ $RUNNER_OS == Linux ]]; then
+            sudo apt-get update
+            sudo apt-get install -y libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev cmake clang libc++-dev libc++abi-dev dosfstools
+          else
+            HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 brew install sdl2 sdl2_image sdl2_mixer
+          fi
+
+      - name: Build
+        env:
+          SANITIZE: ${{ matrix.sanitize }}
+          PATCH: ${{ matrix.patch }}
+          VALGRIND: ${{ matrix.valgrind }}
+        run: |
+          if [[ $RUNNER_OS == Linux ]]; then
+            sed -i '0,/^#ifdef __APPLE__$/s//#if defined(__APPLE__) || defined(__linux__)/' "$REF/src/common/path.cpp"
+            mkdir -p "$RUNNER_TEMP/cxx"
+            printf '#!/bin/sh\nexec clang++ -stdlib=libc++ "$@"\n' > "$RUNNER_TEMP/cxx/clang++-libc++"
+            chmod +x "$RUNNER_TEMP/cxx/clang++-libc++"
+            export CC=clang CXX="$RUNNER_TEMP/cxx/clang++-libc++"
+          fi
+          if [[ -n $PATCH ]]; then
+            git -C "$REF" apply "investigate/patches/$PATCH.patch"
+          fi
+          git -C "$REF" diff --stat
+          flags="-O2 -ffp-contract=off"
+          ldflags=""
+          if [[ -n $SANITIZE ]]; then
+            flags="$flags -g -fsanitize=$SANITIZE -fno-sanitize=vptr,function"
+            ldflags="-fsanitize=$SANITIZE -fno-sanitize=vptr,function"
+          fi
+          if [[ -n $VALGRIND ]]; then
+            flags="$flags -g"
+            sudo apt-get install -y valgrind
+            printf '#!/bin/sh\nexec valgrind -q --vgdb=no --track-origins=yes --error-limit=no --num-callers=12 --log-file="$SMW_DUMP.vg" %s "$@"\n' "$REF/build/smw" > "$RUNNER_TEMP/smw-vg"
+            chmod +x "$RUNNER_TEMP/smw-vg"
+            echo "SMW_BIN=$RUNNER_TEMP/smw-vg" >> "$GITHUB_ENV"
+          fi
+          cmake -S "$REF" -B "$REF/build" -DNO_NETWORK=ON -DBUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DSMW_NO_RLE=ON \
+            -DCMAKE_CXX_FLAGS="$flags" -DCMAKE_EXE_LINKER_FLAGS="$ldflags"
+          cmake --build "$REF/build" --target smw -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu)"
+          "${CXX:-c++}" --version | head -n 1
+
+      - name: Data on a FAT32 card in APFS order
+        if: runner.os == 'Linux'
+        run: |
+          truncate -s 2G "$RUNNER_TEMP/card.img"
+          mkfs.vfat -F 32 "$RUNNER_TEMP/card.img"
+          sudo mkdir -p "$CARD"
+          sudo mount -o loop,utf8,uid="$(id -u)",gid="$(id -g)" "$RUNNER_TEMP/card.img" "$CARD"
+          mkdir "$CARD/tmp"
+          python3 "$RUST/tools/apfs_order.py" "$RUST/data" "$CARD/data"
+          sudo mount --bind "$CARD/data" "$RUST/data"
+          echo "TMPDIR=$CARD/tmp" >> "$GITHUB_ENV"
+          echo "SDL_RENDER_DRIVER=software" >> "$GITHUB_ENV"
+
+      - name: Game replays vs the macOS goldens
+        env:
+          SMW_REF_DIR: ${{ github.workspace }}/ref
+          SMW_DATA_DIR: ${{ github.workspace }}/rust/data
+          OUT: ${{ runner.temp }}/out
+          UBSAN_OPTIONS: print_stacktrace=1
+        run: |
+          cd "$RUST"
+          one() {
+            local name
+            name="$(basename "$1" .txt)"
+            tools/run_ref.sh "$1" "$OUT/$name" > /dev/null 2>&1
+            echo $? > "$OUT/$name.status"
+          }
+          export -f one
+          mkdir -p "$OUT"
+          printf '%s\0' tools/replays/*.txt | xargs -0 -n 1 -P "$JOBS" bash -c 'one "$0"'
+          match=0 total=0
+          : > "$OUT/summary.txt"
+          for replay in tools/replays/*.txt; do
+            name="$(basename "$replay" .txt)"
+            golden=tools/golden/$name/dump.txt
+            [[ -f $golden ]] || golden=$golden.gz
+            total=$((total + 1))
+            if result="$(tools/diffreplay.py "$golden" "$OUT/$name/dump.txt" 2>&1)"; then
+              match=$((match + 1))
+              verdict=MATCH
+            else
+              verdict="$(head -n 1 <<< "$result")"
+              gzip -n -c "$OUT/$name/dump.txt" > "$OUT/$name/dump.txt.gz" 2>/dev/null || true
+            fi
+            printf '%-18s exit %s  %s\n' "$name" "$(cat "$OUT/$name.status")" "$verdict" >> "$OUT/summary.txt"
+          done
+          if [[ -n $SMW_BIN ]]; then
+            cat "$OUT"/*/dump.txt.vg > "$OUT/valgrind.txt" 2>/dev/null || true
+            grep -h -A3 'uninitialised value' "$OUT/valgrind.txt" | grep -o '(src/[^)]*)' | sed 's/[()]//g' | sort | uniq -c | sort -rn > "$OUT/valgrind-sites.txt" || true
+          fi
+          grep -h 'runtime error' "$OUT"/*/stdout.log | sed 's/^.*\/ref\///' | sort | uniq -c | sort -rn > "$OUT/ubsan.txt" || true
+          for f in "$OUT"/*/stdout.log; do
+            n=$(grep -c 'runtime error' "$f" || true)
+            [[ $n -eq 0 ]] || echo "$(basename "$(dirname "$f")") $n"
+          done > "$OUT/ubsan-per-replay.txt"
+          {
+            echo "### ${{ matrix.name }}: $match of $total game replays match the macOS goldens"
+            echo '```'
+            cat "$OUT/summary.txt"
+            echo '```'
+            if [[ -s $OUT/ubsan.txt ]]; then
+              echo '#### UBSan reports (count, location)'
+              echo '```'
+              head -n 80 "$OUT/ubsan.txt"
+              echo '```'
+              echo '```'
+              cat "$OUT/ubsan-per-replay.txt"
+              echo '```'
+            fi
+            if [[ -s $OUT/valgrind-sites.txt ]]; then
+              echo '#### Valgrind uninitialised-value sites (count, top frame)'
+              echo '```'
+              head -n 60 "$OUT/valgrind-sites.txt"
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          cat "$OUT/summary.txt"
+          cat "$OUT/ubsan.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: replays-${{ matrix.name }}
+          path: |
+            ${{ runner.temp }}/out/*.txt
+            ${{ runner.temp }}/out/*/dump.txt.vg
+            ${{ runner.temp }}/out/*/stdout.log
+            ${{ runner.temp }}/out/*/dump.txt.gz
+          retention-days: 7

@@ -4,7 +4,7 @@ This is upstream [mmatyas/supermariowar](https://github.com/mmatyas/supermariowa
 
 ## Branches
 
-- `harness-latest` (default): upstream `5693918f` plus the game and editor harness and the `SMW_NO_RLE` option. Changes to the harness land here through PRs, and the Rust port's goldens and `tools/*-harness.patch` (`git diff master harness-latest`) come from it.
+- `harness-latest` (default): upstream `c7056790` plus the game and editor harness and the `SMW_NO_RLE` option. Changes to the harness land here through PRs, and the Rust port's goldens and `tools/*-harness.patch` (`git diff master harness-latest`) come from it.
 - `master`: upstream, unmodified (remote `upstream`). Fixes meant for upstream branch from here, so their PRs carry no harness code.
 - Tag `port-base-a7f7e25`: upstream `a7f7e25`, the commit the Rust port was first translated from, plus the two original harness commits.
 

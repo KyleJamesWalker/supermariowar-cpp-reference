@@ -1,0 +1,18 @@
+diff --git a/src/smw/main.cpp b/src/smw/main.cpp
+index 8cb917ce..bef70f1e 100644
+--- a/src/smw/main.cpp
++++ b/src/smw/main.cpp
+@@ -445,3 +445,13 @@ void main_game()
+ 	// release all resources
+ 	delete rm;
+ }
++
++// investigation only: zero-filled operator new
++#include <cstdlib>
++#include <new>
++void* operator new(std::size_t n) { void* p = std::calloc(1, n ? n : 1); if (!p) throw std::bad_alloc(); return p; }
++void* operator new[](std::size_t n) { return operator new(n); }
++void operator delete(void* p) noexcept { std::free(p); }
++void operator delete[](void* p) noexcept { std::free(p); }
++void operator delete(void* p, std::size_t) noexcept { std::free(p); }
++void operator delete[](void* p, std::size_t) noexcept { std::free(p); }

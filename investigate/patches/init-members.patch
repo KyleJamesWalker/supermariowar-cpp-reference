@@ -1,0 +1,87 @@
+diff --git a/src/common/ObjectBase.h b/src/common/ObjectBase.h
+index c74ad947..969add7c 100644
+--- a/src/common/ObjectBase.h
++++ b/src/common/ObjectBase.h
+@@ -101,5 +101,5 @@ protected:
+     short state = 0;
+     bool dead = false;
+ 
+-    int iNetworkID;  // TODO: remove, unused
++    int iNetworkID = 0;  // TODO: remove, unused
+ };
+diff --git a/src/common/map.cpp b/src/common/map.cpp
+index 699830e4..eb34d198 100644
+--- a/src/common/map.cpp
++++ b/src/common/map.cpp
+@@ -428,6 +428,8 @@ CMap::CMap()
+     , iSwitches()
+     , racegoallocations()
+     , flagbaselocations()
++    , objectdata()
++    , blockdata()
+ {
+     mapitems.reserve(MAXMAPITEMS);
+     maphazards.reserve(MAXMAPHAZARDS);
+diff --git a/src/smw/ai.h b/src/smw/ai.h
+index e8bd42b3..f8c5874d 100644
+--- a/src/smw/ai.h
++++ b/src/smw/ai.h
+@@ -86,7 +86,7 @@ protected:
+     CPlayer * pPlayer;
+ 
+ private:
+-    short iFallDanger;
++    short iFallDanger = 0;
+     NearestObjects nearestObjects;
+ 
+     std::map<int, AttentionObject*> attentionObjects;
+diff --git a/src/smw/gamemodes/MiniPipe.h b/src/smw/gamemodes/MiniPipe.h
+index 8a684bff..4f7c0c51 100644
+--- a/src/smw/gamemodes/MiniPipe.h
++++ b/src/smw/gamemodes/MiniPipe.h
+@@ -31,5 +31,5 @@ class CGM_Pipe_MiniGame : public CGameMode
+         short iNextItemTimer;
+         short iBonusTimer, iBonusType, iBonusTeam;
+ 
+-        bool fSlowdown;
++        bool fSlowdown = false;
+ };
+diff --git a/src/smw/objects/moving/MovingObject.h b/src/smw/objects/moving/MovingObject.h
+index cc8c514f..06deb007 100644
+--- a/src/smw/objects/moving/MovingObject.h
++++ b/src/smw/objects/moving/MovingObject.h
+@@ -38,7 +38,7 @@ public:
+         return fObjectCollidesWithMap;
+     }
+ 
+-    short iPlayerID;
++    short iPlayerID = 0;
+     short iTeamID;
+ 
+ protected:
+diff --git a/src/smw/objects/overmap/WO_RaceGoal.h b/src/smw/objects/overmap/WO_RaceGoal.h
+index 134012a8..6fb4cfd0 100644
+--- a/src/smw/objects/overmap/WO_RaceGoal.h
++++ b/src/smw/objects/overmap/WO_RaceGoal.h
+@@ -21,7 +21,7 @@ private:
+     float anglechange;
+     short anglechangetimer;
+     float speed;
+-    short quantity;
++    short quantity = 0;
+     bool isfinishline;
+ 
+     friend class CObjectContainer;
+diff --git a/src/smw/player_components/PlayerAwardEffects.h b/src/smw/player_components/PlayerAwardEffects.h
+index 1109b4e6..2ce7ef39 100644
+--- a/src/smw/player_components/PlayerAwardEffects.h
++++ b/src/smw/player_components/PlayerAwardEffects.h
+@@ -20,7 +20,7 @@ private:
+     void addSwirling(CPlayer&);
+     void addRocket(CPlayer&);
+ 
+-    float awardangle;
++    float awardangle = 0.0f;
+     short awards[MAXAWARDS];
+ };
+ 

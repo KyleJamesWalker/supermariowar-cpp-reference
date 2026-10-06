@@ -80,7 +80,7 @@ jobs:
           if [[ -n $VALGRIND ]]; then
             flags="$flags -g"
             sudo apt-get install -y valgrind
-            printf '#!/bin/sh\nexec valgrind -q --track-origins=yes --error-limit=no --num-callers=12 --log-file="$SMW_DUMP.vg" %s "$@"\n' "$REF/build/smw" > "$RUNNER_TEMP/smw-vg"
+            printf '#!/bin/sh\nexec valgrind -q --vgdb=no --track-origins=yes --error-limit=no --num-callers=12 --log-file="$SMW_DUMP.vg" %s "$@"\n' "$REF/build/smw" > "$RUNNER_TEMP/smw-vg"
             chmod +x "$RUNNER_TEMP/smw-vg"
             echo "SMW_BIN=$RUNNER_TEMP/smw-vg" >> "$GITHUB_ENV"
           fi

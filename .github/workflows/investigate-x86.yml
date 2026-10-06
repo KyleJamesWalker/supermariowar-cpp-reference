@@ -24,6 +24,12 @@ jobs:
           - { name: linux-x86_64-float-cast, runner: ubuntu-24.04, sanitize: float-cast-overflow }
           - { name: linux-x86_64-ubsan, runner: ubuntu-24.04, sanitize: undefined }
           - { name: linux-arm64-ubsan, runner: ubuntu-24.04-arm, sanitize: undefined }
+          - { name: linux-arm64-valgrind, runner: ubuntu-24.04-arm, valgrind: true }
+          - { name: linux-x86_64-zero-new, runner: ubuntu-24.04, patch: zero-new }
+          - { name: linux-arm64-zero-new, runner: ubuntu-24.04-arm, patch: zero-new }
+          - { name: linux-x86_64-init-members, runner: ubuntu-24.04, patch: init-members }
+          - { name: linux-arm64-init-members, runner: ubuntu-24.04-arm, patch: init-members }
+          - { name: macos-arm64-init-members, runner: macos-15, patch: init-members }
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     env:
@@ -51,6 +57,8 @@ jobs:
       - name: Build
         env:
           SANITIZE: ${{ matrix.sanitize }}
+          PATCH: ${{ matrix.patch }}
+          VALGRIND: ${{ matrix.valgrind }}
         run: |
           if [[ $RUNNER_OS == Linux ]]; then
             sed -i '0,/^#ifdef __APPLE__$/s//#if defined(__APPLE__) || defined(__linux__)/' "$REF/src/common/path.cpp"
@@ -59,16 +67,22 @@ jobs:
             chmod +x "$RUNNER_TEMP/cxx/clang++-libc++"
             export CC=clang CXX="$RUNNER_TEMP/cxx/clang++-libc++"
           fi
-          for p in "$REF"/investigate/patches/*.patch; do
-            [[ -f $p && -n "${{ matrix.patches }}" ]] || continue
-            git -C "$REF" apply "$p"
-          done
+          if [[ -n $PATCH ]]; then
+            git -C "$REF" apply "investigate/patches/$PATCH.patch"
+          fi
           git -C "$REF" diff --stat
           flags="-O2 -ffp-contract=off"
           ldflags=""
           if [[ -n $SANITIZE ]]; then
             flags="$flags -g -fsanitize=$SANITIZE -fno-sanitize=vptr,function"
             ldflags="-fsanitize=$SANITIZE -fno-sanitize=vptr,function"
+          fi
+          if [[ -n $VALGRIND ]]; then
+            flags="$flags -g"
+            sudo apt-get install -y valgrind
+            printf '#!/bin/sh\nexec valgrind -q --track-origins=yes --error-limit=no --num-callers=12 --log-file="$SMW_DUMP.vg" %s "$@"\n' "$REF/build/smw" > "$REF/build/smw-vg"
+            chmod +x "$REF/build/smw-vg"
+            echo "SMW_BIN=$REF/build/smw-vg" >> "$GITHUB_ENV"
           fi
           cmake -S "$REF" -B "$REF/build" -DNO_NETWORK=ON -DBUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DSMW_NO_RLE=ON \
             -DCMAKE_CXX_FLAGS="$flags" -DCMAKE_EXE_LINKER_FLAGS="$ldflags"
@@ -121,6 +135,10 @@ jobs:
             fi
             printf '%-18s exit %s  %s\n' "$name" "$(cat "$OUT/$name.status")" "$verdict" >> "$OUT/summary.txt"
           done
+          if [[ -n $SMW_BIN ]]; then
+            cat "$OUT"/*/dump.txt.vg > "$OUT/valgrind.txt" 2>/dev/null || true
+            grep -h -A3 'uninitialised value' "$OUT/valgrind.txt" | grep -o '(src/[^)]*)' | sed 's/[()]//g' | sort | uniq -c | sort -rn > "$OUT/valgrind-sites.txt" || true
+          fi
           grep -h 'runtime error' "$OUT"/*/stdout.log | sed 's/^.*\/ref\///' | sort | uniq -c | sort -rn > "$OUT/ubsan.txt" || true
           for f in "$OUT"/*/stdout.log; do
             n=$(grep -c 'runtime error' "$f" || true)
@@ -140,6 +158,12 @@ jobs:
               cat "$OUT/ubsan-per-replay.txt"
               echo '```'
             fi
+            if [[ -s $OUT/valgrind-sites.txt ]]; then
+              echo '#### Valgrind uninitialised-value sites (count, top frame)'
+              echo '```'
+              head -n 60 "$OUT/valgrind-sites.txt"
+              echo '```'
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
           cat "$OUT/summary.txt"
           cat "$OUT/ubsan.txt"
@@ -150,6 +174,7 @@ jobs:
           name: replays-${{ matrix.name }}
           path: |
             ${{ runner.temp }}/out/*.txt
+            ${{ runner.temp }}/out/*/dump.txt.vg
             ${{ runner.temp }}/out/*/stdout.log
             ${{ runner.temp }}/out/*/dump.txt.gz
           retention-days: 7

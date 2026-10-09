@@ -85,7 +85,12 @@ add_library(CommonFiles STATIC
 )
 
 add_subdirectory(ui)
-set_source_files_properties(core-math/atan2f.c core-math/cosf.c core-math/sinf.c PROPERTIES COMPILE_OPTIONS "-ffp-contract=off")
+if(CMAKE_C_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+    set(SMW_FP_CONTRACT_OFF "/clang:-ffp-contract=off")
+else()
+    set(SMW_FP_CONTRACT_OFF "-ffp-contract=off")
+endif()
+set_source_files_properties(core-math/atan2f.c core-math/cosf.c core-math/sinf.c PROPERTIES COMPILE_OPTIONS "${SMW_FP_CONTRACT_OFF}")
 target_compile_features(CommonFiles PUBLIC cxx_std_20)
 
 if (SDL2_FORCE_GLES)

@@ -126,6 +126,10 @@ if (APPLE)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++11-narrowing")
 endif()
 
+if (MSVC AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++11-narrowing")
+endif()
+
 ## MAIN CONFIG
 
 check_and_add_flag(VISIBILITY_INLINES_HIDDEN -fvisibility-inlines-hidden)
